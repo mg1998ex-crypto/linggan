@@ -34,13 +34,8 @@ class SlotMachinePage extends StatefulWidget {
 
 class _SlotMachinePageState extends State<SlotMachinePage>
     with TickerProviderStateMixin {
-  // 示例词库（后续你可以自己替换/扩展）
-  final List<String> words = const [
-    '字典','声音合成器','计算机','纸张','镜头','网络','咖啡','火箭','画布','芯片',
-    '传感器','地图','磁带','电池','齿轮','算法','日记','扫描仪','开关','灯塔',
-    '望远镜','显微镜','密钥','风扇','墨水','太阳能','卫星','路由器','音箱','耳机',
-    '时钟','电梯','画笔','脚踏车','蒸汽','引擎','积木','电台','像素','胶片'
-  ];
+  // ✅ 从 assets/words_zh.txt 读取词库（不再写死在代码里）
+  List<String> words = [];
 
   late final FixedExtentScrollController c1;
   late final FixedExtentScrollController c2;
@@ -55,6 +50,7 @@ class _SlotMachinePageState extends State<SlotMachinePage>
   @override
   void initState() {
     super.initState();
+
     c1 = FixedExtentScrollController();
     c2 = FixedExtentScrollController();
     c3 = FixedExtentScrollController();
@@ -68,9 +64,41 @@ class _SlotMachinePageState extends State<SlotMachinePage>
       CurvedAnimation(parent: leverCtrl, curve: Curves.easeOut),
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _jumpToRandom();
-    });
+    // ✅ 启动时加载词库
+    _loadWords();
+  }
+
+  Future<void> _loadWords() async {
+    try {
+      final raw = await rootBundle.loadString('assets/words_zh.txt');
+      final list = raw
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      // 兜底：如果文件里太少，避免体验太差
+      if (list.length < 10) {
+        list.addAll(const ['字典', '声音合成器', '计算机', '画布', '芯片', '算法', '电池', '电台', '像素', '胶片']);
+      }
+
+      setState(() {
+        words = list;
+      });
+
+      // ✅ 词库加载完成后，随机跳一下
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _jumpToRandom();
+      });
+    } catch (e) {
+      // 如果 assets 配置没生效或文件不存在，会走到这里
+      setState(() {
+        words = const ['字典', '声音合成器', '计算机', '画布', '芯片', '算法', '电池', '电台', '像素', '胶片'];
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _jumpToRandom();
+      });
+    }
   }
 
   @override
@@ -83,6 +111,7 @@ class _SlotMachinePageState extends State<SlotMachinePage>
   }
 
   void _jumpToRandom() {
+    if (words.isEmpty) return;
     final r = Random();
     c1.jumpToItem(r.nextInt(words.length));
     c2.jumpToItem(r.nextInt(words.length));
@@ -91,6 +120,8 @@ class _SlotMachinePageState extends State<SlotMachinePage>
 
   Future<void> _spin() async {
     if (spinning) return;
+    if (words.isEmpty) return;
+
     setState(() => spinning = true);
 
     HapticFeedback.mediumImpact();
@@ -106,15 +137,21 @@ class _SlotMachinePageState extends State<SlotMachinePage>
     ];
 
     await Future.wait([
-      c1.animateToItem(targets[0],
-          duration: const Duration(milliseconds: 1400),
-          curve: Curves.easeOutCubic),
-      c2.animateToItem(targets[1],
-          duration: const Duration(milliseconds: 1700),
-          curve: Curves.easeOutCubic),
-      c3.animateToItem(targets[2],
-          duration: const Duration(milliseconds: 2000),
-          curve: Curves.easeOutQuart),
+      c1.animateToItem(
+        targets[0],
+        duration: const Duration(milliseconds: 1400),
+        curve: Curves.easeOutCubic,
+      ),
+      c2.animateToItem(
+        targets[1],
+        duration: const Duration(milliseconds: 1700),
+        curve: Curves.easeOutCubic,
+      ),
+      c3.animateToItem(
+        targets[2],
+        duration: const Duration(milliseconds: 2000),
+        curve: Curves.easeOutQuart,
+      ),
     ]);
 
     setState(() {
@@ -127,6 +164,13 @@ class _SlotMachinePageState extends State<SlotMachinePage>
 
   @override
   Widget build(BuildContext context) {
+    // ✅ 词库未加载完：显示加载界面（避免 words.length=0 崩溃）
+    if (words.isEmpty) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('灵感 · 老虎机三词'),
@@ -134,7 +178,20 @@ class _SlotMachinePageState extends State<SlotMachinePage>
       ),
       body: Column(
         children: [
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('词库：${words.length} 词',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text('已换：$spinsToday 次',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           Expanded(
             child: Row(
               children: [
