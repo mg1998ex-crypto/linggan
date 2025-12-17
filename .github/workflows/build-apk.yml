@@ -1,0 +1,38 @@
+name: 生成 APK 安装包
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: 创建 Flutter 项目骨架
+        run: |
+          flutter create tmp_app
+          cp -R tmp_app/android .
+          cp -R tmp_app/ios . || true
+          cp -R tmp_app/web . || true
+          cp -R tmp_app/.metadata . || true
+          cp -R tmp_app/analysis_options.yaml . || true
+
+      - name: 获取依赖
+        run: flutter pub get
+
+      - name: 构建 Release APK
+        run: flutter build apk --release
+
+      - name: 上传 APK 文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: linggan-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
