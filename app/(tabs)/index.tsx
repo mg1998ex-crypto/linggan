@@ -22,6 +22,7 @@ export default function HomeScreen() {
   const [stoppedCount, setStoppedCount] = useState(0);
   const [content, setContent] = useState("");
   const [showInput, setShowInput] = useState(false);
+  const [inputExpanded, setInputExpanded] = useState(false); // 输入框是否展开
   const [timeLeft, setTimeLeft] = useState(300); // 5分钟 = 300秒
   const [timerActive, setTimerActive] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -44,6 +45,7 @@ export default function HomeScreen() {
         setWords([draft.word1, draft.word2, draft.word3]);
         setContent(draft.content);
         setShowInput(true);
+        setInputExpanded(true); // 恢复草稿时展开输入框
         setRollingState("stopped");
         setStoppedCount(3);
         // 恢复草稿时启动计时器
@@ -83,6 +85,7 @@ export default function HomeScreen() {
     setRollingState("rolling");
     setStoppedCount(0);
     setShowInput(false);
+    setInputExpanded(false); // 收起输入框
     setContent("");
 
     // 清除之前的备用计时器
@@ -192,6 +195,7 @@ export default function HomeScreen() {
       setWords(["", "", ""]);
       setContent("");
       setShowInput(false);
+      setInputExpanded(false); // 收起输入框
       setRollingState("idle");
       setStoppedCount(0);
 
@@ -281,9 +285,22 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 输入框 */}
-        {showInput && (
-          <View style={styles.inputContainer}>
+        {/* 输入框 - 一直显示 */}
+        <View style={styles.inputContainer}>
+          {!inputExpanded ? (
+            /* 收起状态 - 搜索框样式 */
+            <Pressable
+              onPress={() => setInputExpanded(true)}
+              style={({ pressed }) => [
+                styles.collapsedInput,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.collapsedInputText}>点击记录灵感...</Text>
+            </Pressable>
+          ) : (
+            /* 展开状态 - 完整输入区域 */
+            <>
             <TextInput
               style={styles.input}
               placeholder="记录你的灵感点子..."
@@ -324,8 +341,9 @@ export default function HomeScreen() {
                 </Text>
               </Pressable>
             </View>
-          </View>
-        )}
+            </>
+          )}
+        </View>
       </View>
     </ScreenContainer>
   );
@@ -442,5 +460,19 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     color: "#2C2C2C",
     letterSpacing: 3,
+  },
+  collapsedInput: {
+    backgroundColor: "#FAFAFA",
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    alignItems: "center",
+  },
+  collapsedInputText: {
+    fontSize: 15,
+    color: "#8A8A8A",
+    letterSpacing: 1,
   },
 });

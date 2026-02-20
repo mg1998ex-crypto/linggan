@@ -3,7 +3,7 @@
  * 实现老虎机般的词语滚动效果
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
@@ -25,6 +25,7 @@ interface WordRollerProps {
 export function WordRoller({ word, isRolling, delay, onStop, words }: WordRollerProps) {
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(1);
+  const [rollingWords, setRollingWords] = useState<string[]>([]);
 
   // 根据词语长度计算字体大小
   const getFontSize = (text: string) => {
@@ -33,6 +34,21 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
     if (length === 3) return 30; // 3字词:中号字体
     return 24; // 4字及以上:小号字体
   };
+
+  // 生成滚动时显示的随机词语列表
+  useEffect(() => {
+    if (isRolling) {
+      // 生成 20 个随机词语用于滚动显示
+      const randomWords = [];
+      for (let i = 0; i < 20; i++) {
+        const randomIndex = Math.floor(Math.random() * words.length);
+        randomWords.push(words[randomIndex]);
+      }
+      // 最后一个是目标词
+      randomWords.push(word);
+      setRollingWords(randomWords);
+    }
+  }, [isRolling, word, words]);
 
   useEffect(() => {
     if (isRolling) {
@@ -78,9 +94,21 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.wordContainer, animatedStyle]}>
-        <Text style={[styles.word, { fontSize: getFontSize(word) }]}>{word}</Text>
-      </Animated.View>
+      {isRolling && rollingWords.length > 0 ? (
+        /* 滚动时显示多个词语 */
+        <Animated.View style={[styles.rollingContainer, animatedStyle]}>
+          {rollingWords.map((w, index) => (
+            <View key={index} style={styles.wordContainer}>
+              <Text style={[styles.word, { fontSize: getFontSize(w) }]}>{w}</Text>
+            </View>
+          ))}
+        </Animated.View>
+      ) : (
+        /* 停止时显示最终词语 */
+        <View style={styles.wordContainer}>
+          <Text style={[styles.word, { fontSize: getFontSize(word) }]}>{word}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -94,10 +122,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: 8,
   },
+  rollingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
   wordContainer: {
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+    height: 60,
+    marginVertical: 10,
   },
   word: {
     fontWeight: "700",
