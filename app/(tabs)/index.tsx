@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 32,
+    paddingHorizontal: 20,
     paddingTop: 60,
   },
   header: {
@@ -432,6 +432,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 40,
     marginBottom: 40,
+    gap: 8,
   },
 
   /* 状态3: 抽词完成 */
@@ -441,6 +442,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
     marginBottom: 32,
+    gap: 8,
   },
   inputSection: {
     paddingHorizontal: 4,

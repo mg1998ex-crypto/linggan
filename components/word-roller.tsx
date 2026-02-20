@@ -5,29 +5,59 @@
  * 关键设计:
  * 1. 目标词放在滚动列表的最后位置,动画向上滚动到最后一个词
  * 2. 动画结束后切换为静态显示目标词(无缝过渡)
- * 3. 使用 numberOfLines={1} + adjustsFontSizeToFit 确保词语不换行
+ * 3. 手动计算字体大小确保词语在一行内完整显示(不依赖 adjustsFontSizeToFit)
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Dimensions, Platform } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withSequence,
-  withDelay,
   Easing,
   runOnJS,
 } from "react-native-reanimated";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-// 每个词占屏幕宽度的约1/3,减去两侧padding
-const WORD_CONTAINER_WIDTH = (SCREEN_WIDTH - 64) / 3;
+// 三个词水平排列,减去容器两侧padding(20*2=40),词之间间距(8*2=16)
+// 每个词容器宽度 = (屏幕宽度 - 40 - 16) / 3
+const WORD_CONTAINER_WIDTH = Math.floor((SCREEN_WIDTH - 56) / 3);
 
 // 每个词条目的高度(含间距)
 const ITEM_HEIGHT = 60;
 // 滚动列表中的随机词数量
 const RANDOM_WORD_COUNT = 15;
+
+/**
+ * 根据词语长度和容器宽度计算合适的字体大小
+ * 确保词语在一行内完整显示,不被截断
+ */
+function calcFontSize(text: string): number {
+  if (!text) return 24;
+  const len = text.length;
+  // 每个中文字符大约占 fontSize * 1.1 的宽度(含letterSpacing)
+  // 容器内可用宽度 = WORD_CONTAINER_WIDTH - 8(左右padding各4)
+  const availableWidth = WORD_CONTAINER_WIDTH - 8;
+  // 目标:len * fontSize * 1.1 <= availableWidth
+  // fontSize <= availableWidth / (len * 1.1)
+  const maxByWidth = Math.floor(availableWidth / (len * 1.15));
+  
+  // 根据字数设定理想字体大小
+  let idealSize: number;
+  if (len <= 2) {
+    idealSize = 30;
+  } else if (len === 3) {
+    idealSize = 24;
+  } else if (len === 4) {
+    idealSize = 20;
+  } else {
+    idealSize = 17;
+  }
+  
+  // 取理想大小和容器限制中的较小值,最小不低于14
+  return Math.max(14, Math.min(idealSize, maxByWidth));
+}
 
 interface WordRollerProps {
   word: string;
@@ -71,7 +101,6 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
   useEffect(() => {
     if (isRolling && rollingWords.length > 0) {
       // 计算需要滚动的总距离:滚动到最后一个词(目标词)
-      // 总高度 = (词条数量 - 1) * ITEM_HEIGHT (因为第一个词已经在视口中)
       const totalScrollDistance = (rollingWords.length - 1) * ITEM_HEIGHT;
 
       // 重置位置
@@ -108,15 +137,6 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
     opacity: opacity.value,
   }));
 
-  // 根据词语长度计算字体大小(作为初始值,adjustsFontSizeToFit会自动缩小)
-  const getFontSize = (text: string) => {
-    if (!text) return 28;
-    const length = text.length;
-    if (length <= 2) return 34;
-    if (length === 3) return 28;
-    return 22;
-  };
-
   return (
     <View style={styles.container}>
       {!showStatic && rollingWords.length > 0 ? (
@@ -125,10 +145,9 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
           {rollingWords.map((w, index) => (
             <View key={index} style={styles.wordItem}>
               <Text
-                style={[styles.word, { fontSize: getFontSize(w) }]}
+                style={[styles.word, { fontSize: calcFontSize(w) }]}
                 numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.5}
+                ellipsizeMode="clip"
               >
                 {w}
               </Text>
@@ -140,10 +159,9 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
         <View style={styles.wordItem}>
           {word ? (
             <Text
-              style={[styles.word, { fontSize: getFontSize(word) }]}
+              style={[styles.word, { fontSize: calcFontSize(word) }]}
               numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.5}
+              ellipsizeMode="clip"
             >
               {word}
             </Text>
