@@ -231,8 +231,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 开始/重新开始按钮 */}
-        {(rollingState === "idle" || rollingState === "stopped") && (
+        {/* 开始/重新开始按钮 - 始终显示在卷轴下方 */}
+        {(rollingState === "idle" || rollingState === "stopped") && !showInput && (
           <View style={styles.buttonContainer}>
             <Pressable
               onPress={handleStart}
@@ -262,23 +262,35 @@ export default function HomeScreen() {
               returnKeyType="done"
             />
 
-            {/* 保存按钮 - 始终显示但禁用状态不同 */}
-            <Pressable
-              onPress={canSave ? handleSave : undefined}
-              disabled={!canSave}
-              style={({ pressed }) => [
-                styles.saveButton,
-                !canSave && styles.saveButtonDisabled,
-                pressed && canSave && styles.buttonPressed,
-              ]}
-            >
-              <Text style={[
-                styles.buttonText,
-                !canSave && styles.buttonTextDisabled,
-              ]}>
-                保存灵感
-              </Text>
-            </Pressable>
+            {/* 按钮组 - 重新开始和保存 */}
+            <View style={styles.actionButtonsContainer}>
+              <Pressable
+                onPress={handleStart}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.secondaryButtonText}>重新开始</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={canSave ? handleSave : undefined}
+                disabled={!canSave}
+                style={({ pressed }) => [
+                  styles.saveButton,
+                  !canSave && styles.saveButtonDisabled,
+                  pressed && canSave && styles.buttonPressed,
+                ]}
+              >
+                <Text style={[
+                  styles.buttonText,
+                  !canSave && styles.buttonTextDisabled,
+                ]}>
+                  保存灵感
+                </Text>
+              </Pressable>
+            </View>
           </View>
         )}
       </View>
@@ -305,12 +317,13 @@ const styles = StyleSheet.create({
   rollersContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    marginBottom: 60,
+    marginBottom: 40,
     paddingHorizontal: 20,
   },
   buttonContainer: {
     alignItems: "center",
-    marginTop: 120,
+    marginTop: 60,
+    marginBottom: 20,
   },
   startButton: {
     paddingHorizontal: 48,
@@ -337,8 +350,9 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   inputContainer: {
-    marginTop: 40,
+    marginTop: 20,
     paddingHorizontal: 20,
+    marginBottom: 40,
   },
   input: {
     backgroundColor: "#FAFAFA",
@@ -359,15 +373,35 @@ const styles = StyleSheet.create({
   },
   timer: {
     marginTop: 16,
-    fontSize: 14,
-    fontWeight: "300",
-    color: "#8A8A8A",
-    letterSpacing: 1,
+    fontSize: 18,
+    fontWeight: "400",
+    color: "#5A5A5A",
+    letterSpacing: 2,
   },
   timerWarning: {
     color: "#D4A574",
   },
   timerExpired: {
     color: "#C9A87C",
+  },
+  actionButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 24,
+    gap: 16,
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: "#E8E8E8",
+    borderRadius: 30,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#5A5A5A",
+    letterSpacing: 1,
   },
 });
