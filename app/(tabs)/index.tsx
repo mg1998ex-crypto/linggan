@@ -269,7 +269,7 @@ export default function HomeScreen() {
         )}
 
         {/* 开始/重新开始按钮 - 始终显示在卷轴下方 */}
-        {(rollingState === "idle" || rollingState === "stopped") && !showInput && (
+        {(rollingState === "idle" || (rollingState === "stopped" && !inputExpanded)) && (
           <View style={styles.buttonContainer}>
             <Pressable
               onPress={handleStart}
