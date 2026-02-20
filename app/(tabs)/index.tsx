@@ -26,6 +26,7 @@ export default function HomeScreen() {
   const [timerActive, setTimerActive] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 检查是否首次启动
   useEffect(() => {
@@ -78,20 +79,47 @@ export default function HomeScreen() {
     setStoppedCount(0);
     setShowInput(false);
     setContent("");
+
+    // 清除之前的备用计时器
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+    }
+
+    // 备用机制:如果 3.5 秒后输入框还没显示,强制显示
+    fallbackTimerRef.current = setTimeout(() => {
+      console.log('[Fallback] Forcing input to show after timeout');
+      setRollingState("stopped");
+      setStoppedCount(3);
+      setShowInput(true);
+      startTimer();
+    }, 3500); // 最长延迟 2400ms + 400ms 动画 + 700ms 缓冲
   };
 
   const handleRollerStop = () => {
-    const newCount = stoppedCount + 1;
-    setStoppedCount(newCount);
+    setStoppedCount((prevCount) => {
+      const newCount = prevCount + 1;
+      console.log(`[handleRollerStop] Roller stopped, count: ${newCount}/3`);
 
-    if (newCount === 3) {
-      setRollingState("stopped");
-      // 延迟显示输入框并启动计时器
-      setTimeout(() => {
-        setShowInput(true);
-        startTimer();
-      }, 300);
-    }
+      if (newCount === 3) {
+        console.log('[handleRollerStop] All rollers stopped, showing input and starting timer');
+        
+        // 清除备用计时器
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        
+        setRollingState("stopped");
+        // 延迟显示输入框并启动计时器
+        setTimeout(() => {
+          setShowInput(true);
+          startTimer();
+          console.log('[handleRollerStop] Input shown and timer started');
+        }, 300);
+      }
+
+      return newCount;
+    });
   };
 
   // 启动计时器
