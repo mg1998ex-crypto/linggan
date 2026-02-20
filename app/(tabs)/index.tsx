@@ -1,10 +1,15 @@
 /**
  * 灵感生成主屏幕
- * 实现卷轴滚动动画、灵感记录和自动保存功能
+ * 
+ * 页面状态机:
+ *   状态1 (idle)    - 初始状态:显示标题 + "开始"按钮
+ *   状态2 (rolling) - 动画播放中:卷轴滚动,按钮隐藏
+ *   状态3 (stopped) - 抽词完成:词语 + 计时器 + 输入框 + 按钮全部显示
+ *   状态4 (saved)   - 保存成功:Toast后自动回到状态1
  */
 
-import { useState, useEffect, useRef } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, Alert } from "react-native";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, Alert, ScrollView } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { WordRoller } from "@/components/word-roller";
@@ -14,19 +19,23 @@ import { trpc } from "@/lib/trpc";
 import wordsData from "@/assets/data/words.json";
 import { OnboardingGuide, checkOnboardingCompleted } from "@/components/onboarding-guide";
 
-type RollingState = "idle" | "rolling" | "stopped";
+type AppState = "idle" | "rolling" | "stopped";
 
 export default function HomeScreen() {
+  // 核心状态
+  const [appState, setAppState] = useState<AppState>("idle");
   const [words, setWords] = useState<[string, string, string]>(["", "", ""]);
-  const [rollingState, setRollingState] = useState<RollingState>("idle");
-  const [stoppedCount, setStoppedCount] = useState(0);
   const [content, setContent] = useState("");
-  const [showInput, setShowInput] = useState(false);
-  const [inputExpanded, setInputExpanded] = useState(false); // 输入框是否展开
-  const [timeLeft, setTimeLeft] = useState(300); // 5分钟 = 300秒
+  const [stoppedCount, setStoppedCount] = useState(0);
+
+  // 计时器状态
+  const [timeLeft, setTimeLeft] = useState(300);
   const [timerActive, setTimerActive] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // UI状态
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 检查是否首次启动
@@ -38,112 +47,32 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // 加载草稿
+  // 加载草稿 - 有草稿直接进入状态3(stopped)
   useEffect(() => {
     loadDraft().then((draft) => {
-      if (draft) {
+      if (draft && draft.word1 && draft.word2 && draft.word3) {
         setWords([draft.word1, draft.word2, draft.word3]);
-        setContent(draft.content);
-        setShowInput(true);
-        setInputExpanded(true); // 恢复草稿时展开输入框
-        setRollingState("stopped");
+        setContent(draft.content || "");
+        setAppState("stopped");
         setStoppedCount(3);
-        // 恢复草稿时启动计时器
         startTimer();
       }
+      // 无草稿 → 保持 idle 状态
     });
   }, []);
 
-  // 自动保存草稿(只要有词语就保存,内容可为空)
+  // 自动保存草稿(状态3时,有词语就保存)
   useEffect(() => {
-    if (words[0] && words[1] && words[2]) {
-      const draft = {
+    if (appState === "stopped" && words[0] && words[1] && words[2]) {
+      saveDraft({
         word1: words[0],
         word2: words[1],
         word3: words[2],
         content,
         timestamp: Date.now(),
-      };
-      saveDraft(draft);
+      });
     }
-  }, [content, words]);
-
-  const handleStart = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    // 停止计时器
-    stopTimer();
-
-    // 清除草稿
-    clearDraft();
-
-    // 生成三个随机词
-    const newWords = getRandomWords(wordsData.words);
-    setWords(newWords);
-    setRollingState("rolling");
-    setStoppedCount(0);
-    setShowInput(false);
-    setInputExpanded(false); // 收起输入框
-    setContent("");
-
-    // 清除之前的备用计时器
-    if (fallbackTimerRef.current) {
-      clearTimeout(fallbackTimerRef.current);
-    }
-
-    // 备用机制:如果 3.5 秒后输入框还没显示,强制显示
-    fallbackTimerRef.current = setTimeout(() => {
-      console.log('[Fallback] Forcing input to show after timeout');
-      setRollingState("stopped");
-      setStoppedCount(3);
-      setShowInput(true);
-      startTimer();
-    }, 3500); // 最长延迟 2400ms + 400ms 动画 + 700ms 缓冲
-  };
-
-  const handleRollerStop = () => {
-    setStoppedCount((prevCount) => {
-      const newCount = prevCount + 1;
-      console.log(`[handleRollerStop] Roller stopped, count: ${newCount}/3`);
-
-      if (newCount === 3) {
-        console.log('[handleRollerStop] All rollers stopped, showing input and starting timer');
-        
-        // 清除备用计时器
-        if (fallbackTimerRef.current) {
-          clearTimeout(fallbackTimerRef.current);
-          fallbackTimerRef.current = null;
-        }
-        
-        setRollingState("stopped");
-        // 延迟显示输入框并启动计时器
-        setTimeout(() => {
-          setShowInput(true);
-          startTimer();
-          console.log('[handleRollerStop] Input shown and timer started');
-        }, 300);
-      }
-
-      return newCount;
-    });
-  };
-
-  // 启动计时器
-  const startTimer = () => {
-    setTimeLeft(300);
-    setTimerActive(true);
-  };
-
-  // 停止计时器
-  const stopTimer = () => {
-    setTimerActive(false);
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
+  }, [content, words, appState]);
 
   // 计时器逻辑
   useEffect(() => {
@@ -169,15 +98,85 @@ export default function HomeScreen() {
     };
   }, [timerActive, timeLeft]);
 
+  // 启动计时器
+  const startTimer = useCallback(() => {
+    setTimeLeft(300);
+    setTimerActive(true);
+  }, []);
+
+  // 停止计时器
+  const stopTimer = useCallback(() => {
+    setTimerActive(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  // 点击"开始"或"重新开始"
+  const handleStart = useCallback(() => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    // 停止计时器
+    stopTimer();
+
+    // 清除草稿
+    clearDraft();
+
+    // 生成三个随机词(在动画开始前就确定)
+    const newWords = getRandomWords(wordsData.words);
+    setWords(newWords);
+    setAppState("rolling");
+    setStoppedCount(0);
+    setContent("");
+    setSaveSuccess(false);
+
+    // 清除之前的备用计时器
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+    }
+
+    // 备用机制:如果 4 秒后还没进入 stopped,强制进入
+    fallbackTimerRef.current = setTimeout(() => {
+      console.log('[Fallback] Forcing stopped state after timeout');
+      setAppState("stopped");
+      setStoppedCount(3);
+      startTimer();
+    }, 4000);
+  }, [stopTimer, startTimer]);
+
+  // 单个卷轴停止回调
+  const handleRollerStop = useCallback(() => {
+    setStoppedCount((prevCount) => {
+      const newCount = prevCount + 1;
+      if (newCount === 3) {
+        // 清除备用计时器
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+
+        // 短暂延迟后进入状态3,让动画完全结束
+        setTimeout(() => {
+          setAppState("stopped");
+          startTimer();
+        }, 200);
+      }
+      return newCount;
+    });
+  }, [startTimer]);
+
+  // 保存灵感
   const createInspiration = trpc.inspirations.create.useMutation();
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
     try {
-      // 保存到数据库
       await createInspiration.mutateAsync({
         word1: words[0],
         word2: words[1],
@@ -191,18 +190,17 @@ export default function HomeScreen() {
       // 停止计时器
       stopTimer();
 
-      // 重置状态
-      setWords(["", "", ""]);
-      setContent("");
-      setShowInput(false);
-      setInputExpanded(false); // 收起输入框
-      setRollingState("idle");
-      setStoppedCount(0);
-
       // 显示成功提示
-      if (Platform.OS === "web") {
-        alert("灵感已保存");
-      }
+      setSaveSuccess(true);
+
+      // 1.5秒后回到初始状态
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setWords(["", "", ""]);
+        setContent("");
+        setAppState("idle");
+        setStoppedCount(0);
+      }, 1500);
     } catch (error) {
       console.error("保存灵感失败:", error);
       if (Platform.OS === "web") {
@@ -211,10 +209,10 @@ export default function HomeScreen() {
         Alert.alert("错误", "保存失败,请重试");
       }
     }
-  };
+  }, [words, content, stopTimer, createInspiration]);
 
-  const isRolling = rollingState === "rolling";
   const canSave = content.trim().length > 0;
+  const isRolling = appState === "rolling";
 
   return (
     <ScreenContainer className="bg-background">
@@ -224,207 +222,172 @@ export default function HomeScreen() {
         onComplete={() => setShowOnboarding(false)}
       />
 
-      <View style={styles.container}>
-        {/* 标题区域 */}
-        <View style={styles.header}>
-          <Text style={styles.title}>灵感</Text>
-          
-          {/* 5分钟计时器 - 低调显示 */}
-          {timerActive && (
-            <Text style={[
-              styles.timer,
-              timeLeft <= 60 && styles.timerWarning,
-              timeLeft === 0 && styles.timerExpired,
-            ]}>
-              {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-            </Text>
-          )}
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.container}>
+          {/* 标题区域 */}
+          <View style={styles.header}>
+            <Text style={styles.title}>灵 感</Text>
 
-        {/* 卷轴区域 */}
-        {rollingState !== "idle" && (
-          <View style={styles.rollersContainer}>
-            <WordRoller
-              word={words[0]}
-              isRolling={isRolling}
-              delay={1800}
-              onStop={handleRollerStop}
-              words={wordsData.words}
-            />
-            <WordRoller
-              word={words[1]}
-              isRolling={isRolling}
-              delay={2100}
-              onStop={handleRollerStop}
-              words={wordsData.words}
-            />
-            <WordRoller
-              word={words[2]}
-              isRolling={isRolling}
-              delay={2400}
-              onStop={handleRollerStop}
-              words={wordsData.words}
-            />
-          </View>
-        )}
-
-        {/* 开始/重新开始按钮 - 始终显示在卷轴下方 */}
-        {(rollingState === "idle" || (rollingState === "stopped" && !inputExpanded)) && (
-          <View style={styles.buttonContainer}>
-            <Pressable
-              onPress={handleStart}
-              style={({ pressed }) => [
-                styles.startButton,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={styles.buttonText}>
-                {rollingState === "idle" ? "开始" : "重新开始"}
+            {/* 计时器 - 仅在状态3显示 */}
+            {appState === "stopped" && timerActive && (
+              <Text style={[
+                styles.timer,
+                timeLeft <= 60 && styles.timerWarning,
+                timeLeft === 0 && styles.timerExpired,
+              ]}>
+                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
               </Text>
-            </Pressable>
+            )}
           </View>
-        )}
 
-        {/* 输入框 - 一直显示 */}
-        <View style={styles.inputContainer}>
-          {!inputExpanded ? (
-            /* 收起状态 - 搜索框样式 */
-            <Pressable
-              onPress={() => setInputExpanded(true)}
-              style={({ pressed }) => [
-                styles.collapsedInput,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={styles.collapsedInputText}>点击记录灵感...</Text>
-            </Pressable>
-          ) : (
-            /* 展开状态 - 完整输入区域 */
-            <>
-            <TextInput
-              style={styles.input}
-              placeholder="记录你的灵感点子..."
-              placeholderTextColor="#8A8A8A"
-              multiline
-              value={content}
-              onChangeText={setContent}
-              autoFocus
-              returnKeyType="done"
-            />
-
-            {/* 按钮组 - 重新开始和保存 */}
-            <View style={styles.actionButtonsContainer}>
+          {/* ===== 状态1: 初始状态 ===== */}
+          {appState === "idle" && (
+            <View style={styles.idleContainer}>
               <Pressable
                 onPress={handleStart}
                 style={({ pressed }) => [
-                  styles.secondaryButton,
+                  styles.startButton,
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <Text style={styles.secondaryButtonText}>重新开始</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={canSave ? handleSave : undefined}
-                disabled={!canSave}
-                style={({ pressed }) => [
-                  styles.saveButton,
-                  !canSave && styles.saveButtonDisabled,
-                  pressed && canSave && styles.buttonPressed,
-                ]}
-              >
-                <Text style={[
-                  styles.buttonText,
-                  !canSave && styles.buttonTextDisabled,
-                ]}>
-                  保存灵感
-                </Text>
+                <Text style={styles.startButtonText}>开 始</Text>
               </Pressable>
             </View>
+          )}
+
+          {/* ===== 状态2: 动画播放中 ===== */}
+          {appState === "rolling" && (
+            <View style={styles.rollersContainer}>
+              <WordRoller
+                word={words[0]}
+                isRolling={isRolling}
+                delay={1800}
+                onStop={handleRollerStop}
+                words={wordsData.words}
+              />
+              <WordRoller
+                word={words[1]}
+                isRolling={isRolling}
+                delay={2100}
+                onStop={handleRollerStop}
+                words={wordsData.words}
+              />
+              <WordRoller
+                word={words[2]}
+                isRolling={isRolling}
+                delay={2400}
+                onStop={handleRollerStop}
+                words={wordsData.words}
+              />
+            </View>
+          )}
+
+          {/* ===== 状态3: 抽词完成 ===== */}
+          {appState === "stopped" && (
+            <>
+              {/* 三个词定格显示 */}
+              <View style={styles.wordsDisplayContainer}>
+                <WordRoller
+                  word={words[0]}
+                  isRolling={false}
+                  delay={0}
+                  words={wordsData.words}
+                />
+                <WordRoller
+                  word={words[1]}
+                  isRolling={false}
+                  delay={0}
+                  words={wordsData.words}
+                />
+                <WordRoller
+                  word={words[2]}
+                  isRolling={false}
+                  delay={0}
+                  words={wordsData.words}
+                />
+              </View>
+
+              {/* 保存成功提示 */}
+              {saveSuccess && (
+                <View style={styles.toastContainer}>
+                  <Text style={styles.toastText}>灵感已保存</Text>
+                </View>
+              )}
+
+              {/* 输入框 - 直接显示,无需点击展开 */}
+              {!saveSuccess && (
+                <View style={styles.inputSection}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="记录你的灵感点子..."
+                    placeholderTextColor="#8A8A8A"
+                    multiline
+                    value={content}
+                    onChangeText={setContent}
+                    returnKeyType="done"
+                  />
+
+                  {/* 按钮组:重新开始 + 保存灵感 */}
+                  <View style={styles.actionButtons}>
+                    <Pressable
+                      onPress={handleStart}
+                      style={({ pressed }) => [
+                        styles.secondaryButton,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text style={styles.secondaryButtonText}>重新开始</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={canSave ? handleSave : undefined}
+                      disabled={!canSave}
+                      style={({ pressed }) => [
+                        styles.saveButton,
+                        !canSave && styles.saveButtonDisabled,
+                        pressed && canSave && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text style={[
+                        styles.saveButtonText,
+                        !canSave && styles.saveButtonTextDisabled,
+                      ]}>
+                        保存灵感
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
             </>
           )}
         </View>
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
     paddingHorizontal: 32,
-    paddingTop: 80,
+    paddingTop: 60,
   },
   header: {
     alignItems: "center",
-    marginBottom: 100,
+    marginBottom: 60,
   },
   title: {
     fontSize: 32,
     fontWeight: "300",
     color: "#2C2C2C",
     letterSpacing: 8,
-  },
-  rollersContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 40,
-    paddingHorizontal: 20,
-  },
-  buttonContainer: {
-    alignItems: "center",
-    marginTop: 60,
-    marginBottom: 20,
-  },
-  startButton: {
-    paddingHorizontal: 56,
-    paddingVertical: 18,
-    backgroundColor: "#2C2C2C",
-    borderRadius: 40,
-    borderWidth: 1,
-    borderColor: "#2C2C2C",
-  },
-  saveButton: {
-    flex: 1,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    backgroundColor: "#2C2C2C",
-    borderRadius: 30,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#2C2C2C",
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: "400",
-    color: "#FFFFFF",
-    letterSpacing: 3,
-  },
-  buttonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.97 }],
-  },
-  inputContainer: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    marginBottom: 40,
-  },
-  input: {
-    backgroundColor: "#FAFAFA",
-    borderRadius: 12,
-    padding: 20,
-    fontSize: 16,
-    lineHeight: 24,
-    minHeight: 180,
-    textAlignVertical: "top",
-    color: "#2C2C2C",
-  },
-  saveButtonDisabled: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#E0E0E0",
-  },
-  buttonTextDisabled: {
-    color: "#BDBDBD",
   },
   timer: {
     marginTop: 16,
@@ -439,15 +402,70 @@ const styles = StyleSheet.create({
   timerExpired: {
     color: "#C9A87C",
   },
-  actionButtonsContainer: {
+
+  /* 状态1: 初始状态 */
+  idleContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: 120,
+  },
+  startButton: {
+    paddingHorizontal: 64,
+    paddingVertical: 20,
+    backgroundColor: "#2C2C2C",
+    borderRadius: 40,
+    borderWidth: 1,
+    borderColor: "#2C2C2C",
+  },
+  startButtonText: {
+    fontSize: 18,
+    fontWeight: "400",
+    color: "#FFFFFF",
+    letterSpacing: 6,
+  },
+
+  /* 状态2: 动画播放中 */
+  rollersContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 40,
+    marginBottom: 40,
+  },
+
+  /* 状态3: 抽词完成 */
+  wordsDisplayContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 32,
+  },
+  inputSection: {
+    paddingHorizontal: 4,
+    marginBottom: 40,
+  },
+  input: {
+    backgroundColor: "#FAFAFA",
+    borderRadius: 12,
+    padding: 20,
+    fontSize: 16,
+    lineHeight: 24,
+    minHeight: 160,
+    textAlignVertical: "top",
+    color: "#2C2C2C",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  actionButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 24,
+    marginTop: 20,
     gap: 16,
   },
   secondaryButton: {
     flex: 1,
-    paddingHorizontal: 32,
     paddingVertical: 16,
     backgroundColor: "#FFFFFF",
     borderRadius: 30,
@@ -456,23 +474,46 @@ const styles = StyleSheet.create({
     borderColor: "#2C2C2C",
   },
   secondaryButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "400",
     color: "#2C2C2C",
-    letterSpacing: 3,
+    letterSpacing: 2,
   },
-  collapsedInput: {
-    backgroundColor: "#FAFAFA",
-    borderRadius: 24,
-    paddingHorizontal: 24,
+  saveButton: {
+    flex: 1,
     paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
+    backgroundColor: "#2C2C2C",
+    borderRadius: 30,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2C2C2C",
   },
-  collapsedInputText: {
+  saveButtonText: {
     fontSize: 15,
-    color: "#8A8A8A",
-    letterSpacing: 1,
+    fontWeight: "400",
+    color: "#FFFFFF",
+    letterSpacing: 2,
+  },
+  saveButtonDisabled: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E0E0E0",
+  },
+  saveButtonTextDisabled: {
+    color: "#BDBDBD",
+  },
+  buttonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.97 }],
+  },
+
+  /* Toast */
+  toastContainer: {
+    alignItems: "center",
+    marginTop: 40,
+  },
+  toastText: {
+    fontSize: 16,
+    color: "#5A5A5A",
+    letterSpacing: 2,
   },
 });
