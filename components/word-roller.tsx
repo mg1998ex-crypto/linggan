@@ -28,26 +28,36 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
 
   useEffect(() => {
     if (isRolling) {
-      // 开始滚动动画
+      // 开始滚动动画 - 增强老虎机效果
+      opacity.value = withTiming(0.6, { duration: 200 });
       translateY.value = withSequence(
-        // 快速向上滚动
-        withTiming(-1000, {
+        // 快速向上滚动(模拟老虎机快速旋转)
+        withTiming(-1500, {
           duration: delay,
           easing: Easing.linear,
         }),
-        // 停止时回弹
+        // 停止时先减速再回弹
+        withTiming(-50, {
+          duration: 300,
+          easing: Easing.out(Easing.quad),
+        }),
+        // 最终回弹到位
         withTiming(0, {
-          duration: 400,
-          easing: Easing.out(Easing.cubic),
+          duration: 200,
+          easing: Easing.out(Easing.back(1.5)),
         }, (finished) => {
-          if (finished && onStop) {
-            runOnJS(onStop)();
+          if (finished) {
+            opacity.value = withTiming(1, { duration: 200 });
+            if (onStop) {
+              runOnJS(onStop)();
+            }
           }
         })
       );
     } else {
       // 重置状态
       translateY.value = 0;
+      opacity.value = 1;
     }
   }, [isRolling, delay]);
 
@@ -74,14 +84,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     height: 120,
     overflow: "hidden",
+    minWidth: 120,
   },
   wordContainer: {
     alignItems: "center",
     justifyContent: "center",
+    minWidth: 100,
   },
   word: {
     fontSize: 32,
     fontWeight: "700",
     letterSpacing: 2,
+    flexWrap: "nowrap",
+    textAlign: "center",
   },
 });
