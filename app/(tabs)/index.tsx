@@ -46,13 +46,15 @@ export default function HomeScreen() {
         setShowInput(true);
         setRollingState("stopped");
         setStoppedCount(3);
+        // 恢复草稿时启动计时器
+        startTimer();
       }
     });
   }, []);
 
-  // 自动保存草稿
+  // 自动保存草稿(只要有词语就保存,内容可为空)
   useEffect(() => {
-    if (words[0] && words[1] && words[2] && content) {
+    if (words[0] && words[1] && words[2]) {
       const draft = {
         word1: words[0],
         word2: words[1],
@@ -71,6 +73,9 @@ export default function HomeScreen() {
 
     // 停止计时器
     stopTimer();
+
+    // 清除草稿
+    clearDraft();
 
     // 生成三个随机词
     const newWords = getRandomWords(wordsData.words);

@@ -26,6 +26,14 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(1);
 
+  // 根据词语长度计算字体大小
+  const getFontSize = (text: string) => {
+    const length = text.length;
+    if (length <= 2) return 36; // 2字词:大号字体
+    if (length === 3) return 30; // 3字词:中号字体
+    return 24; // 4字及以上:小号字体
+  };
+
   useEffect(() => {
     if (isRolling) {
       // 开始滚动动画 - 增强老虎机效果
@@ -71,7 +79,7 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.wordContainer, animatedStyle]}>
-        <Text style={styles.word}>{word}</Text>
+        <Text style={[styles.word, { fontSize: getFontSize(word) }]}>{word}</Text>
       </Animated.View>
     </View>
   );
@@ -84,18 +92,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     height: 120,
     overflow: "hidden",
-    minWidth: 120,
+    paddingHorizontal: 8,
   },
   wordContainer: {
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 100,
+    width: "100%",
   },
   word: {
-    fontSize: 32,
     fontWeight: "700",
     letterSpacing: 2,
-    flexWrap: "nowrap",
     textAlign: "center",
+    width: "100%",
   },
 });
