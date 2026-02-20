@@ -40,12 +40,12 @@ export function WordRoller({ word, isRolling, delay, onStop, words }: WordRoller
     if (isRolling) {
       // 生成 20 个随机词语用于滚动显示
       const randomWords = [];
+      // 第一个是目标词(因为动画向上滚动,最后显示的是数组开头)
+      randomWords.push(word);
       for (let i = 0; i < 20; i++) {
         const randomIndex = Math.floor(Math.random() * words.length);
         randomWords.push(words[randomIndex]);
       }
-      // 最后一个是目标词
-      randomWords.push(word);
       setRollingWords(randomWords);
     }
   }, [isRolling, word, words]);
