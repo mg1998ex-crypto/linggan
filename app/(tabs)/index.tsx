@@ -2,10 +2,16 @@
  * 灵感生成主屏幕
  * 
  * 页面状态机:
- *   状态1 (idle)    - 初始状态:显示标题 + "开始"按钮
- *   状态2 (rolling) - 动画播放中:卷轴滚动,按钮隐藏
- *   状态3 (stopped) - 抽词完成:词语 + 计时器 + 输入框 + 按钮全部显示
- *   状态4 (saved)   - 保存成功:Toast后自动回到状态1
+ *   idle    - 初始状态:显示标题 + "开始"按钮,计时器未启动
+ *   rolling - 动画播放中:卷轴滚动,按钮隐藏
+ *   stopped - 抽词完成:词语 + 输入框 + 按钮全部显示
+ * 
+ * 计时器逻辑:
+ *   - 5分钟计时器 = 整体使用时间(孙正义"每天5分钟找灵感")
+ *   - 首次点击"开始"时启动,持续倒计时
+ *   - 保存灵感后:显示Toast → 自动开始下一轮抽词,计时器不重置
+ *   - "重新开始"按钮:重新抽词,计时器不重置
+ *   - 计时器归零:提示时间到,回到idle
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -28,7 +34,7 @@ export default function HomeScreen() {
   const [content, setContent] = useState("");
   const [stoppedCount, setStoppedCount] = useState(0);
 
-  // 计时器状态
+  // 计时器状态 — 5分钟整体使用时间
   const [timeLeft, setTimeLeft] = useState(300);
   const [timerActive, setTimerActive] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -36,6 +42,7 @@ export default function HomeScreen() {
   // UI状态
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [timeUp, setTimeUp] = useState(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 检查是否首次启动
@@ -55,13 +62,14 @@ export default function HomeScreen() {
         setContent(draft.content || "");
         setAppState("stopped");
         setStoppedCount(3);
-        startTimer();
+        // 草稿恢复时启动计时器(从5分钟开始)
+        setTimeLeft(300);
+        setTimerActive(true);
       }
-      // 无草稿 → 保持 idle 状态
     });
   }, []);
 
-  // 自动保存草稿(状态3时,有词语就保存)
+  // 自动保存草稿(stopped状态时)
   useEffect(() => {
     if (appState === "stopped" && words[0] && words[1] && words[2]) {
       saveDraft({
@@ -98,13 +106,25 @@ export default function HomeScreen() {
     };
   }, [timerActive, timeLeft]);
 
-  // 启动计时器
-  const startTimer = useCallback(() => {
-    setTimeLeft(300);
-    setTimerActive(true);
-  }, []);
+  // 计时器归零处理
+  useEffect(() => {
+    if (timeLeft === 0 && !timerActive && appState !== "idle") {
+      // 时间到了,显示提示
+      setTimeUp(true);
+      // 3秒后回到idle
+      setTimeout(() => {
+        setTimeUp(false);
+        clearDraft();
+        setWords(["", "", ""]);
+        setContent("");
+        setAppState("idle");
+        setStoppedCount(0);
+        setTimeLeft(300);
+      }, 3000);
+    }
+  }, [timeLeft, timerActive, appState]);
 
-  // 停止计时器
+  // 停止计时器(仅在回到idle时调用)
   const stopTimer = useCallback(() => {
     setTimerActive(false);
     if (timerRef.current) {
@@ -113,19 +133,16 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // 点击"开始"或"重新开始"
-  const handleStart = useCallback(() => {
+  // 开始新一轮抽词(不重置计时器)
+  const startNewRound = useCallback(() => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    // 停止计时器
-    stopTimer();
-
     // 清除草稿
     clearDraft();
 
-    // 生成三个随机词(在动画开始前就确定)
+    // 生成三个随机词
     const newWords = getRandomWords(wordsData.words);
     setWords(newWords);
     setAppState("rolling");
@@ -143,9 +160,24 @@ export default function HomeScreen() {
       console.log('[Fallback] Forcing stopped state after timeout');
       setAppState("stopped");
       setStoppedCount(3);
-      startTimer();
     }, 4000);
-  }, [stopTimer, startTimer]);
+  }, []);
+
+  // 首次点击"开始"(从idle状态,启动计时器 + 抽词)
+  const handleFirstStart = useCallback(() => {
+    // 启动5分钟计时器
+    setTimeLeft(300);
+    setTimerActive(true);
+    setTimeUp(false);
+
+    // 开始抽词
+    startNewRound();
+  }, [startNewRound]);
+
+  // "重新开始"按钮(不重置计时器,只重新抽词)
+  const handleRestart = useCallback(() => {
+    startNewRound();
+  }, [startNewRound]);
 
   // 单个卷轴停止回调
   const handleRollerStop = useCallback(() => {
@@ -158,15 +190,14 @@ export default function HomeScreen() {
           fallbackTimerRef.current = null;
         }
 
-        // 短暂延迟后进入状态3,让动画完全结束
+        // 短暂延迟后进入状态3
         setTimeout(() => {
           setAppState("stopped");
-          startTimer();
         }, 200);
       }
       return newCount;
     });
-  }, [startTimer]);
+  }, []);
 
   // 保存灵感
   const createInspiration = trpc.inspirations.create.useMutation();
@@ -187,19 +218,13 @@ export default function HomeScreen() {
       // 清除草稿
       await clearDraft();
 
-      // 停止计时器
-      stopTimer();
-
       // 显示成功提示
       setSaveSuccess(true);
 
-      // 1.5秒后回到初始状态
+      // 1.5秒后自动开始下一轮抽词(不回idle,不重置计时器)
       setTimeout(() => {
         setSaveSuccess(false);
-        setWords(["", "", ""]);
-        setContent("");
-        setAppState("idle");
-        setStoppedCount(0);
+        startNewRound();
       }, 1500);
     } catch (error) {
       console.error("保存灵感失败:", error);
@@ -209,10 +234,12 @@ export default function HomeScreen() {
         Alert.alert("错误", "保存失败,请重试");
       }
     }
-  }, [words, content, stopTimer, createInspiration]);
+  }, [words, content, createInspiration, startNewRound]);
 
   const canSave = content.trim().length > 0;
   const isRolling = appState === "rolling";
+  // 计时器在非idle状态时显示
+  const showTimer = appState !== "idle" && (timerActive || timeLeft === 0);
 
   return (
     <ScreenContainer className="bg-background">
@@ -232,23 +259,31 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>灵 感</Text>
 
-            {/* 计时器 - 仅在状态3显示 */}
-            {appState === "stopped" && timerActive && (
+            {/* 计时器 - 在rolling和stopped状态都显示 */}
+            {showTimer && (
               <Text style={[
                 styles.timer,
-                timeLeft <= 60 && styles.timerWarning,
+                timeLeft <= 60 && timeLeft > 0 && styles.timerWarning,
                 timeLeft === 0 && styles.timerExpired,
               ]}>
-                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                {timeLeft === 0 ? "时间到" : `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`}
               </Text>
             )}
           </View>
 
+          {/* 时间到提示 */}
+          {timeUp && (
+            <View style={styles.timeUpContainer}>
+              <Text style={styles.timeUpTitle}>今日灵感时间结束</Text>
+              <Text style={styles.timeUpSubtitle}>明天再来继续探索吧</Text>
+            </View>
+          )}
+
           {/* ===== 状态1: 初始状态 ===== */}
-          {appState === "idle" && (
+          {appState === "idle" && !timeUp && (
             <View style={styles.idleContainer}>
               <Pressable
-                onPress={handleStart}
+                onPress={handleFirstStart}
                 style={({ pressed }) => [
                   styles.startButton,
                   pressed && styles.buttonPressed,
@@ -260,7 +295,7 @@ export default function HomeScreen() {
           )}
 
           {/* ===== 状态2: 动画播放中 ===== */}
-          {appState === "rolling" && (
+          {appState === "rolling" && !timeUp && (
             <View style={styles.rollersContainer}>
               <WordRoller
                 word={words[0]}
@@ -287,7 +322,7 @@ export default function HomeScreen() {
           )}
 
           {/* ===== 状态3: 抽词完成 ===== */}
-          {appState === "stopped" && (
+          {appState === "stopped" && !timeUp && (
             <>
               {/* 三个词定格显示 */}
               <View style={styles.wordsDisplayContainer}>
@@ -314,11 +349,11 @@ export default function HomeScreen() {
               {/* 保存成功提示 */}
               {saveSuccess && (
                 <View style={styles.toastContainer}>
-                  <Text style={styles.toastText}>灵感已保存</Text>
+                  <Text style={styles.toastText}>灵感已保存,继续下一组...</Text>
                 </View>
               )}
 
-              {/* 输入框 - 直接显示,无需点击展开 */}
+              {/* 输入框 - 直接显示 */}
               {!saveSuccess && (
                 <View style={styles.inputSection}>
                   <TextInput
@@ -331,16 +366,16 @@ export default function HomeScreen() {
                     returnKeyType="done"
                   />
 
-                  {/* 按钮组:重新开始 + 保存灵感 */}
+                  {/* 按钮组:换一组 + 保存灵感 */}
                   <View style={styles.actionButtons}>
                     <Pressable
-                      onPress={handleStart}
+                      onPress={handleRestart}
                       style={({ pressed }) => [
                         styles.secondaryButton,
                         pressed && styles.buttonPressed,
                       ]}
                     >
-                      <Text style={styles.secondaryButtonText}>重新开始</Text>
+                      <Text style={styles.secondaryButtonText}>换一组</Text>
                     </Pressable>
 
                     <Pressable
@@ -401,6 +436,27 @@ const styles = StyleSheet.create({
   },
   timerExpired: {
     color: "#C9A87C",
+  },
+
+  /* 时间到提示 */
+  timeUpContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: 120,
+  },
+  timeUpTitle: {
+    fontSize: 22,
+    fontWeight: "400",
+    color: "#2C2C2C",
+    letterSpacing: 4,
+    marginBottom: 12,
+  },
+  timeUpSubtitle: {
+    fontSize: 15,
+    fontWeight: "300",
+    color: "#8A8A8A",
+    letterSpacing: 2,
   },
 
   /* 状态1: 初始状态 */
