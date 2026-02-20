@@ -4,20 +4,62 @@
  */
 
 import { useState } from "react";
-import { View, Text, FlatList, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, FlatList, Pressable, StyleSheet, Platform, Alert } from "react-native";
 import * as Haptics from "expo-haptics";
+import { Swipeable } from "react-native-gesture-handler";
 import { ScreenContainer } from "@/components/screen-container";
 import { trpc } from "@/lib/trpc";
 
 export default function ArchiveScreen() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const { data: inspirations = [], isLoading, refetch } = trpc.inspirations.list.useQuery();
+  const deleteInspiration = trpc.inspirations.delete.useMutation();
 
   const handleCardPress = (id: number) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setSelectedId(selectedId === id ? null : id);
+  };
+
+  const handleDelete = async (id: number, word1: string, word2: string, word3: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+
+    const confirmDelete = () => {
+      deleteInspiration.mutate({ id }, {
+        onSuccess: () => {
+          refetch();
+          if (Platform.OS !== "web") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+        },
+        onError: (error) => {
+          console.error("删除失败:", error);
+          if (Platform.OS === "web") {
+            alert("删除失败,请重试");
+          } else {
+            Alert.alert("错误", "删除失败,请重试");
+          }
+        },
+      });
+    };
+
+    if (Platform.OS === "web") {
+      if (confirm(`确定删除这条灵感\uff1f\n${word1} · ${word2} · ${word3}`)) {
+        confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        "删除灵感",
+        `确定删除这条灵感\uff1f\n${word1} · ${word2} · ${word3}`,
+        [
+          { text: "取消", style: "cancel" },
+          { text: "删除", style: "destructive", onPress: confirmDelete },
+        ]
+      );
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -28,27 +70,44 @@ export default function ArchiveScreen() {
     return `${year}-${month}-${day}`;
   };
 
+  const renderRightActions = (item: any) => {
+    return (
+      <Pressable
+        onPress={() => handleDelete(item.id, item.word1, item.word2, item.word3)}
+        style={styles.deleteButton}
+      >
+        <Text style={styles.deleteButtonText}>删除</Text>
+      </Pressable>
+    );
+  };
+
   const renderItem = ({ item }: { item: any }) => {
     const isExpanded = selectedId === item.id;
     const summary = item.content.length > 50 ? item.content.slice(0, 50) + "..." : item.content;
 
     return (
-      <Pressable
-        onPress={() => handleCardPress(item.id)}
-        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      <Swipeable
+        renderRightActions={() => renderRightActions(item)}
+        overshootRight={false}
       >
-        <View style={styles.wordsContainer}>
-          <Text style={styles.words}>
-            {item.word1} · {item.word2} · {item.word3}
+        <Pressable
+          onPress={() => handleCardPress(item.id)}
+          onLongPress={() => handleDelete(item.id, item.word1, item.word2, item.word3)}
+          style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+        >
+          <View style={styles.wordsContainer}>
+            <Text style={styles.words}>
+              {item.word1} · {item.word2} · {item.word3}
+            </Text>
+          </View>
+
+          <Text style={styles.content} numberOfLines={isExpanded ? undefined : 2}>
+            {isExpanded ? item.content : summary}
           </Text>
-        </View>
 
-        <Text style={styles.content} numberOfLines={isExpanded ? undefined : 2}>
-          {isExpanded ? item.content : summary}
-        </Text>
-
-        <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
-      </Pressable>
+          <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+        </Pressable>
+      </Swipeable>
     );
   };
 
@@ -143,5 +202,18 @@ const styles = StyleSheet.create({
   emptyHint: {
     fontSize: 14,
     color: "#AFAFAF",
+  },
+  deleteButton: {
+    backgroundColor: "#C9A87C",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  deleteButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "500",
   },
 });

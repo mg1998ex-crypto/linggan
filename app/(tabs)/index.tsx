@@ -3,7 +3,7 @@
  * 实现卷轴滚动动画、灵感记录和自动保存功能
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Platform, Alert } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
@@ -12,6 +12,7 @@ import { getRandomWords } from "@/lib/word-filter";
 import { saveDraft, loadDraft, clearDraft } from "@/lib/draft-storage";
 import { trpc } from "@/lib/trpc";
 import wordsData from "@/assets/data/words.json";
+import { OnboardingGuide, checkOnboardingCompleted } from "@/components/onboarding-guide";
 
 type RollingState = "idle" | "rolling" | "stopped";
 
@@ -21,6 +22,19 @@ export default function HomeScreen() {
   const [stoppedCount, setStoppedCount] = useState(0);
   const [content, setContent] = useState("");
   const [showInput, setShowInput] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(300); // 5分钟 = 300秒
+  const [timerActive, setTimerActive] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // 检查是否首次启动
+  useEffect(() => {
+    checkOnboardingCompleted().then((completed) => {
+      if (!completed) {
+        setShowOnboarding(true);
+      }
+    });
+  }, []);
 
   // 加载草稿
   useEffect(() => {
@@ -54,6 +68,9 @@ export default function HomeScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
+    // 停止计时器
+    stopTimer();
+
     // 生成三个随机词
     const newWords = getRandomWords(wordsData.words);
     setWords(newWords);
@@ -69,12 +86,52 @@ export default function HomeScreen() {
 
     if (newCount === 3) {
       setRollingState("stopped");
-      // 延迟显示输入框
+      // 延迟显示输入框并启动计时器
       setTimeout(() => {
         setShowInput(true);
+        startTimer();
       }, 300);
     }
   };
+
+  // 启动计时器
+  const startTimer = () => {
+    setTimeLeft(300);
+    setTimerActive(true);
+  };
+
+  // 停止计时器
+  const stopTimer = () => {
+    setTimerActive(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  // 计时器逻辑
+  useEffect(() => {
+    if (timerActive && timeLeft > 0) {
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            setTimerActive(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [timerActive, timeLeft]);
 
   const createInspiration = trpc.inspirations.create.useMutation();
 
@@ -94,6 +151,9 @@ export default function HomeScreen() {
 
       // 清除草稿
       await clearDraft();
+
+      // 停止计时器
+      stopTimer();
 
       // 重置状态
       setWords(["", "", ""]);
@@ -121,10 +181,27 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer className="bg-background">
+      {/* 首次启动引导 */}
+      <OnboardingGuide
+        visible={showOnboarding}
+        onComplete={() => setShowOnboarding(false)}
+      />
+
       <View style={styles.container}>
         {/* 标题区域 */}
         <View style={styles.header}>
           <Text style={styles.title}>灵感</Text>
+          
+          {/* 5分钟计时器 - 低调显示 */}
+          {timerActive && (
+            <Text style={[
+              styles.timer,
+              timeLeft <= 60 && styles.timerWarning,
+              timeLeft === 0 && styles.timerExpired,
+            ]}>
+              {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+            </Text>
+          )}
         </View>
 
         {/* 卷轴区域 */}
@@ -154,8 +231,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 开始按钮 */}
-        {rollingState === "idle" && (
+        {/* 开始/重新开始按钮 */}
+        {(rollingState === "idle" || rollingState === "stopped") && (
           <View style={styles.buttonContainer}>
             <Pressable
               onPress={handleStart}
@@ -164,7 +241,9 @@ export default function HomeScreen() {
                 pressed && styles.buttonPressed,
               ]}
             >
-              <Text style={styles.buttonText}>开始</Text>
+              <Text style={styles.buttonText}>
+                {rollingState === "idle" ? "开始" : "重新开始"}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -183,18 +262,23 @@ export default function HomeScreen() {
               returnKeyType="done"
             />
 
-            {/* 保存按钮 */}
-            {canSave && (
-              <Pressable
-                onPress={handleSave}
-                style={({ pressed }) => [
-                  styles.saveButton,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text style={styles.buttonText}>保存</Text>
-              </Pressable>
-            )}
+            {/* 保存按钮 - 始终显示但禁用状态不同 */}
+            <Pressable
+              onPress={canSave ? handleSave : undefined}
+              disabled={!canSave}
+              style={({ pressed }) => [
+                styles.saveButton,
+                !canSave && styles.saveButtonDisabled,
+                pressed && canSave && styles.buttonPressed,
+              ]}
+            >
+              <Text style={[
+                styles.buttonText,
+                !canSave && styles.buttonTextDisabled,
+              ]}>
+                保存灵感
+              </Text>
+            </Pressable>
           </View>
         )}
       </View>
@@ -265,5 +349,25 @@ const styles = StyleSheet.create({
     minHeight: 180,
     textAlignVertical: "top",
     color: "#2C2C2C",
+  },
+  saveButtonDisabled: {
+    backgroundColor: "#D0D0D0",
+    opacity: 0.5,
+  },
+  buttonTextDisabled: {
+    color: "#8A8A8A",
+  },
+  timer: {
+    marginTop: 16,
+    fontSize: 14,
+    fontWeight: "300",
+    color: "#8A8A8A",
+    letterSpacing: 1,
+  },
+  timerWarning: {
+    color: "#D4A574",
+  },
+  timerExpired: {
+    color: "#C9A87C",
   },
 });
