@@ -32,7 +32,7 @@ const env = {
   appSlug: "linggan-app",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  logoUrl: "https://private-us-east-1.manuscdn.com/sessionFile/a2L9QE5mvmqvsHJ9g8Rs9b/sandbox/IADRKAnTFwEXOlEGXp17xE-img-1_1771566544000_na1fn_aWNvbmcucG5n.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,

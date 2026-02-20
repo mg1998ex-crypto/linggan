@@ -25,4 +25,21 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+/**
+ * 灵感存档表
+ * 存储用户生成的灵感记录(本地存储,不关联用户表)
+ */
+export const inspirations = mysqlTable("inspirations", {
+  id: int("id").primaryKey().autoincrement(),
+  // 三个原词
+  word1: varchar("word1", { length: 50 }).notNull(),
+  word2: varchar("word2", { length: 50 }).notNull(),
+  word3: varchar("word3", { length: 50 }).notNull(),
+  // 用户的灵感点子
+  content: text("content").notNull(),
+  // 创建时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Inspiration = typeof inspirations.$inferSelect;
+export type NewInspiration = typeof inspirations.$inferInsert;
