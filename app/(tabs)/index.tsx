@@ -10,12 +10,12 @@
  *   - 5分钟计时器 = 整体使用时间(孙正义"每天5分钟找灵感")
  *   - 首次点击"开始"时启动,持续倒计时
  *   - 保存灵感后:显示Toast → 自动开始下一轮抽词,计时器不重置
- *   - "重新开始"按钮:重新抽词,计时器不重置
+ *   - "换一组"按钮:重新抽词,计时器不重置
  *   - 计时器归零:提示时间到,回到idle
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, Alert, ScrollView } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, Alert, ScrollView, Modal, FlatList } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { WordRoller } from "@/components/word-roller";
@@ -24,15 +24,21 @@ import { saveDraft, loadDraft, clearDraft } from "@/lib/draft-storage";
 import { trpc } from "@/lib/trpc";
 import wordsData from "@/assets/data/words.json";
 import { OnboardingGuide, checkOnboardingCompleted } from "@/components/onboarding-guide";
+import { useWordLibrary } from "@/lib/word-library-context";
 
 type AppState = "idle" | "rolling" | "stopped";
 
 export default function HomeScreen() {
+  const lib = useWordLibrary();
+
   // 核心状态
   const [appState, setAppState] = useState<AppState>("idle");
   const [words, setWords] = useState<[string, string, string]>(["", "", ""]);
   const [content, setContent] = useState("");
   const [stoppedCount, setStoppedCount] = useState(0);
+
+  // 分类筛选
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   // 计时器状态 — 5分钟整体使用时间
   const [timeLeft, setTimeLeft] = useState(300);
@@ -62,7 +68,6 @@ export default function HomeScreen() {
         setContent(draft.content || "");
         setAppState("stopped");
         setStoppedCount(3);
-        // 草稿恢复时启动计时器(从5分钟开始)
         setTimeLeft(300);
         setTimerActive(true);
       }
@@ -109,9 +114,7 @@ export default function HomeScreen() {
   // 计时器归零处理
   useEffect(() => {
     if (timeLeft === 0 && !timerActive && appState !== "idle") {
-      // 时间到了,显示提示
       setTimeUp(true);
-      // 3秒后回到idle
       setTimeout(() => {
         setTimeUp(false);
         clearDraft();
@@ -124,14 +127,15 @@ export default function HomeScreen() {
     }
   }, [timeLeft, timerActive, appState]);
 
-  // 停止计时器(仅在回到idle时调用)
-  const stopTimer = useCallback(() => {
-    setTimerActive(false);
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  // 获取当前可用词库
+  const getAvailableWords = useCallback((): string[] => {
+    if (!lib.loading && lib.data) {
+      const words = lib.getWordsForDrawing();
+      if (words.length >= 3) return words;
     }
-  }, []);
+    // fallback到原始词库
+    return wordsData.words;
+  }, [lib]);
 
   // 开始新一轮抽词(不重置计时器)
   const startNewRound = useCallback(() => {
@@ -139,42 +143,35 @@ export default function HomeScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    // 清除草稿
     clearDraft();
 
-    // 生成三个随机词
-    const newWords = getRandomWords(wordsData.words);
+    const availableWords = getAvailableWords();
+    const newWords = getRandomWords(availableWords);
     setWords(newWords);
     setAppState("rolling");
     setStoppedCount(0);
     setContent("");
     setSaveSuccess(false);
 
-    // 清除之前的备用计时器
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
     }
 
-    // 备用机制:如果 4 秒后还没进入 stopped,强制进入
     fallbackTimerRef.current = setTimeout(() => {
-      console.log('[Fallback] Forcing stopped state after timeout');
       setAppState("stopped");
       setStoppedCount(3);
     }, 4000);
-  }, []);
+  }, [getAvailableWords]);
 
-  // 首次点击"开始"(从idle状态,启动计时器 + 抽词)
+  // 首次点击"开始"
   const handleFirstStart = useCallback(() => {
-    // 启动5分钟计时器
     setTimeLeft(300);
     setTimerActive(true);
     setTimeUp(false);
-
-    // 开始抽词
     startNewRound();
   }, [startNewRound]);
 
-  // "重新开始"按钮(不重置计时器,只重新抽词)
+  // "换一组"按钮
   const handleRestart = useCallback(() => {
     startNewRound();
   }, [startNewRound]);
@@ -184,13 +181,10 @@ export default function HomeScreen() {
     setStoppedCount((prevCount) => {
       const newCount = prevCount + 1;
       if (newCount === 3) {
-        // 清除备用计时器
         if (fallbackTimerRef.current) {
           clearTimeout(fallbackTimerRef.current);
           fallbackTimerRef.current = null;
         }
-
-        // 短暂延迟后进入状态3
         setTimeout(() => {
           setAppState("stopped");
         }, 200);
@@ -215,13 +209,9 @@ export default function HomeScreen() {
         content: content.trim(),
       });
 
-      // 清除草稿
       await clearDraft();
-
-      // 显示成功提示
       setSaveSuccess(true);
 
-      // 1.5秒后自动开始下一轮抽词(不回idle,不重置计时器)
       setTimeout(() => {
         setSaveSuccess(false);
         startNewRound();
@@ -236,10 +226,23 @@ export default function HomeScreen() {
     }
   }, [words, content, createInspiration, startNewRound]);
 
+  // 分类筛选相关
+  const selectedCategoryId = lib.data?.selectedCategoryId || null;
+  const selectedCategoryName = selectedCategoryId
+    ? lib.getCategory(selectedCategoryId)?.name || "全部词库"
+    : "全部词库";
+  const visibleCategories = lib.getVisibleCategories();
+
+  const handleSelectCategory = (categoryId: string | null) => {
+    lib.setSelectedCategory(categoryId);
+    setShowCategoryPicker(false);
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const canSave = content.trim().length > 0;
   const isRolling = appState === "rolling";
-  // 计时器在非idle状态时显示
   const showTimer = appState !== "idle" && (timerActive || timeLeft === 0);
+  const availableWords = getAvailableWords();
 
   return (
     <ScreenContainer className="bg-background">
@@ -259,7 +262,6 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>灵 感</Text>
 
-            {/* 计时器 - 在rolling和stopped状态都显示 */}
             {showTimer && (
               <Text style={[
                 styles.timer,
@@ -282,6 +284,15 @@ export default function HomeScreen() {
           {/* ===== 状态1: 初始状态 ===== */}
           {appState === "idle" && !timeUp && (
             <View style={styles.idleContainer}>
+              {/* 分类筛选器 */}
+              <Pressable
+                onPress={() => setShowCategoryPicker(true)}
+                style={({ pressed }) => [styles.categoryFilter, pressed && styles.filterPressed]}
+              >
+                <Text style={styles.categoryFilterText}>{selectedCategoryName}</Text>
+                <Text style={styles.categoryFilterArrow}>▾</Text>
+              </Pressable>
+
               <Pressable
                 onPress={handleFirstStart}
                 style={({ pressed }) => [
@@ -302,21 +313,21 @@ export default function HomeScreen() {
                 isRolling={isRolling}
                 delay={1800}
                 onStop={handleRollerStop}
-                words={wordsData.words}
+                words={availableWords}
               />
               <WordRoller
                 word={words[1]}
                 isRolling={isRolling}
                 delay={2100}
                 onStop={handleRollerStop}
-                words={wordsData.words}
+                words={availableWords}
               />
               <WordRoller
                 word={words[2]}
                 isRolling={isRolling}
                 delay={2400}
                 onStop={handleRollerStop}
-                words={wordsData.words}
+                words={availableWords}
               />
             </View>
           )}
@@ -330,30 +341,28 @@ export default function HomeScreen() {
                   word={words[0]}
                   isRolling={false}
                   delay={0}
-                  words={wordsData.words}
+                  words={availableWords}
                 />
                 <WordRoller
                   word={words[1]}
                   isRolling={false}
                   delay={0}
-                  words={wordsData.words}
+                  words={availableWords}
                 />
                 <WordRoller
                   word={words[2]}
                   isRolling={false}
                   delay={0}
-                  words={wordsData.words}
+                  words={availableWords}
                 />
               </View>
 
-              {/* 保存成功提示 */}
               {saveSuccess && (
                 <View style={styles.toastContainer}>
                   <Text style={styles.toastText}>灵感已保存,继续下一组...</Text>
                 </View>
               )}
 
-              {/* 输入框 - 直接显示 */}
               {!saveSuccess && (
                 <View style={styles.inputSection}>
                   <TextInput
@@ -366,7 +375,6 @@ export default function HomeScreen() {
                     returnKeyType="done"
                   />
 
-                  {/* 按钮组:换一组 + 保存灵感 */}
                   <View style={styles.actionButtons}>
                     <Pressable
                       onPress={handleRestart}
@@ -401,177 +409,138 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* 分类筛选弹窗 */}
+      <Modal visible={showCategoryPicker} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowCategoryPicker(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>选择词库分类</Text>
+            <FlatList
+              data={[{ id: null, name: "全部词库", count: availableWords.length }, ...visibleCategories.map((c) => ({ id: c.id, name: c.name, count: c.words.length }))]}
+              keyExtractor={(item) => item.id || "all"}
+              style={styles.categoryPickerList}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => handleSelectCategory(item.id)}
+                  style={({ pressed }) => [
+                    styles.categoryPickerItem,
+                    (item.id === selectedCategoryId || (item.id === null && !selectedCategoryId)) && styles.categoryPickerItemActive,
+                    pressed && styles.filterPressed,
+                  ]}
+                >
+                  <Text style={[
+                    styles.categoryPickerName,
+                    (item.id === selectedCategoryId || (item.id === null && !selectedCategoryId)) && styles.categoryPickerNameActive,
+                  ]}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.categoryPickerCount}>{item.count} 词</Text>
+                </Pressable>
+              )}
+            />
+            <Pressable
+              onPress={() => setShowCategoryPicker(false)}
+              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.filterPressed]}
+            >
+              <Text style={styles.modalCloseText}>关闭</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    flexGrow: 1,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 60,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "300",
-    color: "#2C2C2C",
-    letterSpacing: 8,
-  },
-  timer: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: "400",
-    color: "#5A5A5A",
-    letterSpacing: 2,
-  },
-  timerWarning: {
-    color: "#D4A574",
-  },
-  timerExpired: {
-    color: "#C9A87C",
-  },
+  scrollContent: { flexGrow: 1 },
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
+  header: { alignItems: "center", marginBottom: 60 },
+  title: { fontSize: 32, fontWeight: "300", color: "#2C2C2C", letterSpacing: 8 },
+  timer: { marginTop: 16, fontSize: 18, fontWeight: "400", color: "#5A5A5A", letterSpacing: 2 },
+  timerWarning: { color: "#D4A574" },
+  timerExpired: { color: "#C9A87C" },
 
-  /* 时间到提示 */
-  timeUpContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingBottom: 120,
-  },
-  timeUpTitle: {
-    fontSize: 22,
-    fontWeight: "400",
-    color: "#2C2C2C",
-    letterSpacing: 4,
-    marginBottom: 12,
-  },
-  timeUpSubtitle: {
-    fontSize: 15,
-    fontWeight: "300",
-    color: "#8A8A8A",
-    letterSpacing: 2,
-  },
+  timeUpContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 120 },
+  timeUpTitle: { fontSize: 22, fontWeight: "400", color: "#2C2C2C", letterSpacing: 4, marginBottom: 12 },
+  timeUpSubtitle: { fontSize: 15, fontWeight: "300", color: "#8A8A8A", letterSpacing: 2 },
 
   /* 状态1: 初始状态 */
-  idleContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingBottom: 120,
+  idleContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 120 },
+
+  /* 分类筛选器 */
+  categoryFilter: {
+    flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: "#FAFAFA", borderRadius: 20, marginBottom: 32,
+    borderWidth: 1, borderColor: "#F0F0F0",
   },
+  categoryFilterText: { fontSize: 14, color: "#5A5A5A", letterSpacing: 1 },
+  categoryFilterArrow: { fontSize: 12, color: "#8A8A8A", marginLeft: 6 },
+  filterPressed: { opacity: 0.7 },
+
   startButton: {
-    paddingHorizontal: 64,
-    paddingVertical: 20,
-    backgroundColor: "#2C2C2C",
-    borderRadius: 40,
-    borderWidth: 1,
-    borderColor: "#2C2C2C",
+    paddingHorizontal: 64, paddingVertical: 20, backgroundColor: "#2C2C2C",
+    borderRadius: 40, borderWidth: 1, borderColor: "#2C2C2C",
   },
-  startButtonText: {
-    fontSize: 18,
-    fontWeight: "400",
-    color: "#FFFFFF",
-    letterSpacing: 6,
-  },
+  startButtonText: { fontSize: 18, fontWeight: "400", color: "#FFFFFF", letterSpacing: 6 },
 
   /* 状态2: 动画播放中 */
   rollersContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 40,
-    marginBottom: 40,
-    gap: 8,
+    flexDirection: "row", justifyContent: "center", alignItems: "center",
+    marginTop: 40, marginBottom: 40, gap: 8,
   },
 
   /* 状态3: 抽词完成 */
   wordsDisplayContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 32,
-    gap: 8,
+    flexDirection: "row", justifyContent: "center", alignItems: "center",
+    marginTop: 20, marginBottom: 32, gap: 8,
   },
-  inputSection: {
-    paddingHorizontal: 4,
-    marginBottom: 40,
-  },
+  inputSection: { paddingHorizontal: 4, marginBottom: 40 },
   input: {
-    backgroundColor: "#FAFAFA",
-    borderRadius: 12,
-    padding: 20,
-    fontSize: 16,
-    lineHeight: 24,
-    minHeight: 160,
-    textAlignVertical: "top",
-    color: "#2C2C2C",
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
+    backgroundColor: "#FAFAFA", borderRadius: 12, padding: 20, fontSize: 16,
+    lineHeight: 24, minHeight: 160, textAlignVertical: "top", color: "#2C2C2C",
+    borderWidth: 1, borderColor: "#F0F0F0",
   },
-  actionButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
-    gap: 16,
-  },
+  actionButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 20, gap: 16 },
   secondaryButton: {
-    flex: 1,
-    paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 30,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#2C2C2C",
+    flex: 1, paddingVertical: 16, backgroundColor: "#FFFFFF", borderRadius: 30,
+    alignItems: "center", borderWidth: 1, borderColor: "#2C2C2C",
   },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: "400",
-    color: "#2C2C2C",
-    letterSpacing: 2,
-  },
+  secondaryButtonText: { fontSize: 15, fontWeight: "400", color: "#2C2C2C", letterSpacing: 2 },
   saveButton: {
-    flex: 1,
-    paddingVertical: 16,
-    backgroundColor: "#2C2C2C",
-    borderRadius: 30,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#2C2C2C",
+    flex: 1, paddingVertical: 16, backgroundColor: "#2C2C2C", borderRadius: 30,
+    alignItems: "center", borderWidth: 1, borderColor: "#2C2C2C",
   },
-  saveButtonText: {
-    fontSize: 15,
-    fontWeight: "400",
-    color: "#FFFFFF",
-    letterSpacing: 2,
-  },
-  saveButtonDisabled: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#E0E0E0",
-  },
-  saveButtonTextDisabled: {
-    color: "#BDBDBD",
-  },
-  buttonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.97 }],
-  },
+  saveButtonText: { fontSize: 15, fontWeight: "400", color: "#FFFFFF", letterSpacing: 2 },
+  saveButtonDisabled: { backgroundColor: "#FFFFFF", borderColor: "#E0E0E0" },
+  saveButtonTextDisabled: { color: "#BDBDBD" },
+  buttonPressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
 
-  /* Toast */
-  toastContainer: {
-    alignItems: "center",
-    marginTop: 40,
+  toastContainer: { alignItems: "center", marginTop: 40 },
+  toastText: { fontSize: 16, color: "#5A5A5A", letterSpacing: 2 },
+
+  /* 分类选择弹窗 */
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center",
+    alignItems: "center", paddingHorizontal: 32,
   },
-  toastText: {
-    fontSize: 16,
-    color: "#5A5A5A",
-    letterSpacing: 2,
+  modalContent: {
+    backgroundColor: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 360,
+    maxHeight: "70%",
   },
+  modalTitle: { fontSize: 18, fontWeight: "500", color: "#2C2C2C", marginBottom: 16, textAlign: "center" },
+  categoryPickerList: { maxHeight: 400 },
+  categoryPickerItem: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10, marginBottom: 6,
+    backgroundColor: "#FAFAFA",
+  },
+  categoryPickerItemActive: { backgroundColor: "#2C2C2C" },
+  categoryPickerName: { fontSize: 15, color: "#2C2C2C" },
+  categoryPickerNameActive: { color: "#FFFFFF", fontWeight: "500" },
+  categoryPickerCount: { fontSize: 13, color: "#8A8A8A" },
+  modalCloseButton: {
+    marginTop: 16, paddingVertical: 14, backgroundColor: "#F5F5F5",
+    borderRadius: 24, alignItems: "center",
+  },
+  modalCloseText: { fontSize: 15, color: "#5A5A5A" },
 });
