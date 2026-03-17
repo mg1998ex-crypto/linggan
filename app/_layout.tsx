@@ -90,6 +90,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="category-detail" options={{ presentation: "card" }} />
+            <Stack.Screen name="inspiration-detail" options={{ presentation: "card" }} />
             <Stack.Screen name="oauth/callback" />
           </Stack>
           <StatusBar style="auto" />

@@ -65,6 +65,25 @@ export const inspirationsRouter = router({
     }),
 
   /**
+   * 更新灵感记录内容
+   */
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        content: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new Error("Database not available");
+      }
+      await db.update(inspirations).set({ content: input.content }).where(eq(inspirations.id, input.id));
+      return { success: true };
+    }),
+
+  /**
    * 删除灵感记录
    */
   delete: publicProcedure

@@ -1,17 +1,18 @@
 /**
  * 灵感列表页面
  * 展示所有已保存的灵感记录
+ * 点击卡片进入详情页查看/编辑
  */
 
-import { useState } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet, Platform, Alert } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Swipeable } from "react-native-gesture-handler";
+import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { trpc } from "@/lib/trpc";
 
 export default function ArchiveScreen() {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const router = useRouter();
   const { data: inspirations = [], isLoading, refetch } = trpc.inspirations.list.useQuery();
   const deleteInspiration = trpc.inspirations.delete.useMutation();
 
@@ -19,7 +20,7 @@ export default function ArchiveScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    setSelectedId(selectedId === id ? null : id);
+    router.push({ pathname: "/inspiration-detail", params: { id: String(id) } });
   };
 
   const handleDelete = async (id: number, word1: string, word2: string, word3: string) => {
@@ -47,13 +48,13 @@ export default function ArchiveScreen() {
     };
 
     if (Platform.OS === "web") {
-      if (confirm(`确定删除这条灵感\uff1f\n${word1} · ${word2} · ${word3}`)) {
+      if (confirm(`确定删除这条灵感？\n${word1} · ${word2} · ${word3}`)) {
         confirmDelete();
       }
     } else {
       Alert.alert(
         "删除灵感",
-        `确定删除这条灵感\uff1f\n${word1} · ${word2} · ${word3}`,
+        `确定删除这条灵感？\n${word1} · ${word2} · ${word3}`,
         [
           { text: "取消", style: "cancel" },
           { text: "删除", style: "destructive", onPress: confirmDelete },
@@ -82,8 +83,7 @@ export default function ArchiveScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => {
-    const isExpanded = selectedId === item.id;
-    const summary = item.content.length > 50 ? item.content.slice(0, 50) + "..." : item.content;
+    const summary = item.content.length > 60 ? item.content.slice(0, 60) + "..." : item.content;
 
     return (
       <Swipeable
@@ -101,11 +101,14 @@ export default function ArchiveScreen() {
             </Text>
           </View>
 
-          <Text style={styles.content} numberOfLines={isExpanded ? undefined : 2}>
-            {isExpanded ? item.content : summary}
+          <Text style={styles.content} numberOfLines={2}>
+            {summary}
           </Text>
 
-          <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+          <View style={styles.cardFooter}>
+            <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+            <Text style={styles.viewHint}>查看详情 →</Text>
+          </View>
         </Pressable>
       </Swipeable>
     );
@@ -184,9 +187,19 @@ const styles = StyleSheet.create({
     color: "#2C2C2C",
     marginBottom: 12,
   },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   date: {
     fontSize: 12,
     color: "#8A8A8A",
+  },
+  viewHint: {
+    fontSize: 12,
+    color: "#AFAFAF",
+    letterSpacing: 0.5,
   },
   emptyContainer: {
     flex: 1,

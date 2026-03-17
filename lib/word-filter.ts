@@ -1,66 +1,7 @@
 /**
  * 同源词过滤算法
- * 检测三个词的语义相似度,确保组合具有足够的"跨度"
+ * 检测三个词的语义相似度,确保组合具有足够的"跨度"和创意激发价值
  */
-
-/**
- * 计算两个字符串的编辑距离(Levenshtein Distance)
- * 用于检测词语的相似度
- */
-function levenshteinDistance(str1: string, str2: string): number {
-  const m = str1.length;
-  const n = str2.length;
-  const dp: number[][] = Array(m + 1)
-    .fill(null)
-    .map(() => Array(n + 1).fill(0));
-
-  for (let i = 0; i <= m; i++) {
-    dp[i][0] = i;
-  }
-  for (let j = 0; j <= n; j++) {
-    dp[0][j] = j;
-  }
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (str1[i - 1] === str2[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
-      }
-    }
-  }
-
-  return dp[m][n];
-}
-
-/**
- * 计算两个词的相似度(0-1之间,1表示完全相同)
- */
-function calculateSimilarity(word1: string, word2: string): number {
-  const distance = levenshteinDistance(word1, word2);
-  const maxLength = Math.max(word1.length, word2.length);
-  return 1 - distance / maxLength;
-}
-
-/**
- * 检查两个词是否包含相同的字符(用于检测同源词)
- */
-function hasCommonCharacters(word1: string, word2: string): boolean {
-  const chars1 = new Set(word1.split(""));
-  const chars2 = new Set(word2.split(""));
-  let commonCount = 0;
-
-  for (const char of chars1) {
-    if (chars2.has(char)) {
-      commonCount++;
-    }
-  }
-
-  // 如果超过50%的字符相同,认为是同源词
-  const minLength = Math.min(word1.length, word2.length);
-  return commonCount / minLength > 0.5;
-}
 
 /**
  * 检查词语是否包含另一个词(如"苹果"和"红苹果")
@@ -70,30 +11,67 @@ function isSubstring(word1: string, word2: string): boolean {
 }
 
 /**
+ * 提取核心词(最后2个字)
+ * 对于3字及以上的词,取最后2个字作为核心词
+ * 例如:"牛仔帽" → "仔帽", "宠物帽子" → "帽子", "台球桌" → "球桌"
+ */
+function extractCoreWord(word: string): string {
+  if (word.length <= 2) return word;
+  return word.slice(-2);
+}
+
+/**
+ * 检查两个词是否共享相同的核心词
+ * 例如:"牛仔帽"和"宠物帽子"都含"帽"
+ */
+function hasSameCoreWord(word1: string, word2: string): boolean {
+  // 对于短词(<=2字),直接比较
+  if (word1.length <= 2 && word2.length <= 2) {
+    return word1 === word2;
+  }
+
+  const core1 = extractCoreWord(word1);
+  const core2 = extractCoreWord(word2);
+
+  // 核心词完全相同
+  if (core1 === core2) return true;
+
+  // 核心词有包含关系(如"帽"和"帽子")
+  if (core1.includes(core2) || core2.includes(core1)) return true;
+
+  // 检查最后一个字是否相同(如"牛仔帽"和"安全帽"最后都是"帽")
+  if (word1.length >= 2 && word2.length >= 2) {
+    const lastChar1 = word1[word1.length - 1];
+    const lastChar2 = word2[word2.length - 1];
+    // 常见的核心尾字匹配
+    const coreChars = new Set(["帽", "鞋", "衣", "裤", "包", "杯", "碗", "盘", "锅", "刀", "笔", "灯", "车", "机", "球", "琴", "花", "草", "树", "鱼", "鸟", "桌", "椅", "床", "柜"]);
+    if (lastChar1 === lastChar2 && coreChars.has(lastChar1)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * 检查三个词是否为同源词
  * @returns true 表示通过检测(不是同源词), false 表示是同源词需要重新抽取
  */
 export function checkWordDiversity(word1: string, word2: string, word3: string): boolean {
-  const pairs = [
+  const pairs: [string, string][] = [
     [word1, word2],
     [word1, word3],
     [word2, word3],
   ];
 
   for (const [w1, w2] of pairs) {
-    // 检查1: 是否包含关系(如"苹果"和"红苹果")
+    // 检查1: 完全包含过滤(如"苹果"和"红苹果")
     if (isSubstring(w1, w2)) {
       return false;
     }
 
-    // 检查2: 编辑距离相似度是否过高(阈值0.7)
-    const similarity = calculateSimilarity(w1, w2);
-    if (similarity > 0.7) {
-      return false;
-    }
-
-    // 检查3: 是否有过多相同字符
-    if (hasCommonCharacters(w1, w2)) {
+    // 检查2: 相同核心词过滤(如"牛仔帽"和"宠物帽子")
+    if (hasSameCoreWord(w1, w2)) {
       return false;
     }
   }
@@ -102,17 +80,45 @@ export function checkWordDiversity(word1: string, word2: string, word3: string):
 }
 
 /**
+ * 检查三个词是否全部来自同一分类
+ * @param categoryMap 词语到分类ID的映射
+ * @returns true 表示全部同分类(需要重抽)
+ */
+export function areAllSameCategory(
+  words: [string, string, string],
+  categoryMap: Map<string, string>
+): boolean {
+  const cat1 = categoryMap.get(words[0]);
+  const cat2 = categoryMap.get(words[1]);
+  const cat3 = categoryMap.get(words[2]);
+
+  // 如果有词找不到分类,不过滤
+  if (!cat1 || !cat2 || !cat3) return false;
+
+  return cat1 === cat2 && cat2 === cat3;
+}
+
+/**
  * 从词库中随机抽取三个词,确保它们不是同源词
  * @param words 词库数组
  * @param maxAttempts 最大尝试次数
+ * @param categoryMap 词语到分类ID的映射(可选,用于同分类过滤)
+ * @param isFilteredByCategory 是否用户主动选择了分类(如果是,跳过同分类过滤)
  * @returns 三个不同的词
  */
-export function getRandomWords(words: string[], maxAttempts: number = 50): [string, string, string] {
+export function getRandomWords(
+  words: string[],
+  maxAttempts: number = 10,
+  categoryMap?: Map<string, string>,
+  isFilteredByCategory?: boolean,
+): [string, string, string] {
   if (words.length < 3) {
     throw new Error("词库至少需要3个词");
   }
 
+  let lastResult: [string, string, string] | null = null;
   let attempts = 0;
+
   while (attempts < maxAttempts) {
     // 随机抽取三个不同的词
     const indices = new Set<number>();
@@ -121,23 +127,95 @@ export function getRandomWords(words: string[], maxAttempts: number = 50): [stri
     }
 
     const [idx1, idx2, idx3] = Array.from(indices);
-    const word1 = words[idx1];
-    const word2 = words[idx2];
-    const word3 = words[idx3];
+    const result: [string, string, string] = [words[idx1], words[idx2], words[idx3]];
+    lastResult = result;
 
-    // 检查是否为同源词
-    if (checkWordDiversity(word1, word2, word3)) {
-      return [word1, word2, word3];
+    // 检查同源词
+    if (!checkWordDiversity(result[0], result[1], result[2])) {
+      attempts++;
+      continue;
     }
 
-    attempts++;
+    // 检查同分类(仅在非用户主动选择分类时)
+    if (categoryMap && !isFilteredByCategory && areAllSameCategory(result, categoryMap)) {
+      attempts++;
+      continue;
+    }
+
+    return result;
   }
 
-  // 如果超过最大尝试次数,直接返回三个随机词(降级策略)
-  const indices = new Set<number>();
-  while (indices.size < 3) {
-    indices.add(Math.floor(Math.random() * words.length));
+  // 超过最大尝试次数,使用最后一次结果
+  return lastResult!;
+}
+
+/**
+ * 从词库中随机抽取指定数量的词(不重复)
+ * 用于锁定词语后只抽取部分词
+ */
+export function getRandomWord(
+  words: string[],
+  excludeWords: string[] = [],
+): string {
+  const available = words.filter((w) => !excludeWords.includes(w));
+  if (available.length === 0) {
+    return words[Math.floor(Math.random() * words.length)];
   }
-  const [idx1, idx2, idx3] = Array.from(indices);
-  return [words[idx1], words[idx2], words[idx3]];
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+/**
+ * 抽取部分词语(用于锁定词语后的部分重抽)
+ * @param words 词库数组
+ * @param lockedWords 已锁定的词(保持不变)
+ * @param lockedIndices 锁定的位置索引 [0,1,2]
+ * @param maxAttempts 最大尝试次数
+ * @param categoryMap 词语到分类ID的映射
+ * @param isFilteredByCategory 是否用户主动选择了分类
+ */
+export function getPartialRandomWords(
+  words: string[],
+  currentWords: [string, string, string],
+  lockedIndices: boolean[],
+  maxAttempts: number = 10,
+  categoryMap?: Map<string, string>,
+  isFilteredByCategory?: boolean,
+): [string, string, string] {
+  const unlockedCount = lockedIndices.filter((locked) => !locked).length;
+  if (unlockedCount === 0) return currentWords;
+  if (unlockedCount === 3) return getRandomWords(words, maxAttempts, categoryMap, isFilteredByCategory);
+
+  let attempts = 0;
+  let lastResult: [string, string, string] = [...currentWords];
+
+  while (attempts < maxAttempts) {
+    const result: [string, string, string] = [...currentWords];
+    const usedWords = currentWords.filter((_, i) => lockedIndices[i]);
+
+    // 为未锁定的位置抽取新词
+    for (let i = 0; i < 3; i++) {
+      if (!lockedIndices[i]) {
+        result[i] = getRandomWord(words, usedWords);
+        usedWords.push(result[i]);
+      }
+    }
+
+    lastResult = result;
+
+    // 检查同源词
+    if (!checkWordDiversity(result[0], result[1], result[2])) {
+      attempts++;
+      continue;
+    }
+
+    // 检查同分类
+    if (categoryMap && !isFilteredByCategory && areAllSameCategory(result, categoryMap)) {
+      attempts++;
+      continue;
+    }
+
+    return result;
+  }
+
+  return lastResult;
 }

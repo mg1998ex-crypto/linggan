@@ -1,202 +1,193 @@
 /**
- * 灵感生成主屏幕
+ * 灵感主页面
  * 
- * 页面状态机:
- *   idle    - 初始状态:显示标题 + "开始"按钮,计时器未启动
- *   rolling - 动画播放中:卷轴滚动,按钮隐藏
- *   stopped - 抽词完成:词语 + 输入框 + 按钮全部显示
+ * 状态机:
+ * idle → rolling → stopped → (保存后自动rolling) → stopped → ...
+ * 5分钟计时器在首次"开始"时启动,持续倒计时直到归零
  * 
- * 计时器逻辑:
- *   - 5分钟计时器 = 整体使用时间(孙正义"每天5分钟找灵感")
- *   - 首次点击"开始"时启动,持续倒计时
- *   - 保存灵感后:显示Toast → 自动开始下一轮抽词,计时器不重置
- *   - "换一组"按钮:重新抽词,计时器不重置
- *   - 计时器归零:提示时间到,回到idle
+ * 新功能: 锁定词语部分重抽
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, Alert, ScrollView, Modal, FlatList } from "react-native";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  View, Text, TextInput, Pressable, ScrollView, StyleSheet,
+  Platform, Alert, FlatList, Modal, Keyboard,
+} from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { WordRoller } from "@/components/word-roller";
-import { getRandomWords } from "@/lib/word-filter";
-import { saveDraft, loadDraft, clearDraft } from "@/lib/draft-storage";
+import { getRandomWords, getPartialRandomWords } from "@/lib/word-filter";
 import { trpc } from "@/lib/trpc";
-import wordsData from "@/assets/data/words.json";
-import { OnboardingGuide, checkOnboardingCompleted } from "@/components/onboarding-guide";
 import { useWordLibrary } from "@/lib/word-library-context";
+import { saveDraft, loadDraft, clearDraft, type Draft } from "@/lib/draft-storage";
 
-type AppState = "idle" | "rolling" | "stopped";
+type AppState = "idle" | "rolling" | "stopped" | "timeup";
+
+const TOTAL_TIME = 5 * 60; // 5分钟
 
 export default function HomeScreen() {
-  const lib = useWordLibrary();
-
-  // 核心状态
-  const [appState, setAppState] = useState<AppState>("idle");
+  const [state, setState] = useState<AppState>("idle");
   const [words, setWords] = useState<[string, string, string]>(["", "", ""]);
   const [content, setContent] = useState("");
-  const [stoppedCount, setStoppedCount] = useState(0);
-
-  // 分类筛选
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-
-  // 计时器状态 — 5分钟整体使用时间
-  const [timeLeft, setTimeLeft] = useState(300);
-  const [timerActive, setTimerActive] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // UI状态
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [timeUp, setTimeUp] = useState(false);
-  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [lockedIndices, setLockedIndices] = useState<[boolean, boolean, boolean]>([false, false, false]);
+  const [rollerStopCount, setRollerStopCount] = useState(0);
 
-  // 检查是否首次启动
-  useEffect(() => {
-    checkOnboardingCompleted().then((completed) => {
-      if (!completed) {
-        setShowOnboarding(true);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerStarted = useRef(false);
+  const draftLoaded = useRef(false);
+
+  const { data: libraryData, getWordsForDrawing, setSelectedCategory, getVisibleCategories } = useWordLibrary();
+  const createInspiration = trpc.inspirations.create.useMutation();
+
+  const selectedCategoryId = libraryData?.selectedCategoryId || null;
+  const visibleCategories = getVisibleCategories();
+  const selectedCategoryName = useMemo(() => {
+    if (!selectedCategoryId) return "全部词库";
+    const cat = visibleCategories.find((c) => c.id === selectedCategoryId);
+    return cat ? cat.name : "全部词库";
+  }, [selectedCategoryId, visibleCategories]);
+
+  // 获取可用词语
+  const availableWords = useMemo(() => getWordsForDrawing(), [libraryData, selectedCategoryId]);
+
+  // 构建词语到分类的映射(用于同分类过滤)
+  const categoryMap = useMemo(() => {
+    if (!libraryData) return new Map<string, string>();
+    const map = new Map<string, string>();
+    for (const cat of libraryData.categories) {
+      if (!cat.isHidden) {
+        for (const w of cat.words) {
+          map.set(w.text, cat.id);
+        }
       }
-    });
-  }, []);
+    }
+    return map;
+  }, [libraryData]);
 
-  // 加载草稿 - 有草稿直接进入状态3(stopped)
+  const canSave = content.trim().length > 0;
+
+  // 加载草稿
   useEffect(() => {
-    loadDraft().then((draft) => {
+    if (draftLoaded.current) return;
+    draftLoaded.current = true;
+    loadDraft().then((draft: Draft | null) => {
       if (draft && draft.word1 && draft.word2 && draft.word3) {
         setWords([draft.word1, draft.word2, draft.word3]);
         setContent(draft.content || "");
-        setAppState("stopped");
-        setStoppedCount(3);
-        setTimeLeft(300);
-        setTimerActive(true);
+        setState("stopped");
       }
     });
   }, []);
 
-  // 自动保存草稿(stopped状态时)
+  // 计时器
   useEffect(() => {
-    if (appState === "stopped" && words[0] && words[1] && words[2]) {
-      saveDraft({
-        word1: words[0],
-        word2: words[1],
-        word3: words[2],
-        content,
-        timestamp: Date.now(),
-      });
-    }
-  }, [content, words, appState]);
-
-  // 计时器逻辑
-  useEffect(() => {
-    if (timerActive && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            setTimerActive(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timerActive, timeLeft]);
+  }, []);
 
-  // 计时器归零处理
+  const startTimer = useCallback(() => {
+    if (timerStarted.current) return;
+    timerStarted.current = true;
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = null;
+          setState("timeup");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // 自动保存草稿
   useEffect(() => {
-    if (timeLeft === 0 && !timerActive && appState !== "idle") {
-      setTimeUp(true);
-      setTimeout(() => {
-        setTimeUp(false);
-        clearDraft();
+    if (state === "stopped" && words[0]) {
+      saveDraft({ word1: words[0], word2: words[1], word3: words[2], content, timestamp: Date.now() });
+    }
+  }, [state, words, content]);
+
+  // 时间到后3秒回到初始状态
+  useEffect(() => {
+    if (state === "timeup") {
+      clearDraft();
+      const timer = setTimeout(() => {
+        setState("idle");
         setWords(["", "", ""]);
         setContent("");
-        setAppState("idle");
-        setStoppedCount(0);
-        setTimeLeft(300);
+        setTimeLeft(TOTAL_TIME);
+        timerStarted.current = false;
+        setLockedIndices([false, false, false]);
       }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [timeLeft, timerActive, appState]);
+  }, [state]);
 
-  // 获取当前可用词库
-  const getAvailableWords = useCallback((): string[] => {
-    if (!lib.loading && lib.data) {
-      const words = lib.getWordsForDrawing();
-      if (words.length >= 3) return words;
+  const formatTime = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
+  // 开始抽词
+  const handleStart = useCallback(() => {
+    if (availableWords.length < 3) {
+      const msg = "当前词库词语不足3个,请切换分类或添加更多词语";
+      if (Platform.OS === "web") alert(msg);
+      else Alert.alert("提示", msg);
+      return;
     }
-    // fallback到原始词库
-    return wordsData.words;
-  }, [lib]);
 
-  // 开始新一轮抽词(不重置计时器)
-  const startNewRound = useCallback(() => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    startTimer();
+    const isFilteredByCategory = !!selectedCategoryId;
+    const newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
+    setWords(newWords);
+    setContent("");
+    setLockedIndices([false, false, false]);
+    setRollerStopCount(0);
+    setState("rolling");
+  }, [availableWords, startTimer, selectedCategoryId, categoryMap]);
+
+  // 换一组(支持锁定)
+  const handleRestart = useCallback(() => {
+    if (availableWords.length < 3) return;
+
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    Keyboard.dismiss();
 
-    clearDraft();
+    const hasLocked = lockedIndices.some((l) => l);
+    const isFilteredByCategory = !!selectedCategoryId;
 
-    const availableWords = getAvailableWords();
-    const newWords = getRandomWords(availableWords);
-    setWords(newWords);
-    setAppState("rolling");
-    setStoppedCount(0);
-    setContent("");
-    setSaveSuccess(false);
-
-    if (fallbackTimerRef.current) {
-      clearTimeout(fallbackTimerRef.current);
+    let newWords: [string, string, string];
+    if (hasLocked) {
+      newWords = getPartialRandomWords(
+        availableWords, words, lockedIndices, 10, categoryMap, isFilteredByCategory
+      );
+    } else {
+      newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
     }
 
-    fallbackTimerRef.current = setTimeout(() => {
-      setAppState("stopped");
-      setStoppedCount(3);
-    }, 4000);
-  }, [getAvailableWords]);
-
-  // 首次点击"开始"
-  const handleFirstStart = useCallback(() => {
-    setTimeLeft(300);
-    setTimerActive(true);
-    setTimeUp(false);
-    startNewRound();
-  }, [startNewRound]);
-
-  // "换一组"按钮
-  const handleRestart = useCallback(() => {
-    startNewRound();
-  }, [startNewRound]);
-
-  // 单个卷轴停止回调
-  const handleRollerStop = useCallback(() => {
-    setStoppedCount((prevCount) => {
-      const newCount = prevCount + 1;
-      if (newCount === 3) {
-        if (fallbackTimerRef.current) {
-          clearTimeout(fallbackTimerRef.current);
-          fallbackTimerRef.current = null;
-        }
-        setTimeout(() => {
-          setAppState("stopped");
-        }, 200);
-      }
-      return newCount;
-    });
-  }, []);
+    setWords(newWords);
+    setContent("");
+    setRollerStopCount(0);
+    setState("rolling");
+  }, [availableWords, words, lockedIndices, selectedCategoryId, categoryMap]);
 
   // 保存灵感
-  const createInspiration = trpc.inspirations.create.useMutation();
-
   const handleSave = useCallback(async () => {
+    if (!canSave) return;
+
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -208,81 +199,90 @@ export default function HomeScreen() {
         word3: words[2],
         content: content.trim(),
       });
-
-      await clearDraft();
-      setSaveSuccess(true);
-
-      setTimeout(() => {
-        setSaveSuccess(false);
-        startNewRound();
-      }, 1500);
-    } catch (error) {
-      console.error("保存灵感失败:", error);
-      if (Platform.OS === "web") {
-        alert("保存失败,请重试");
-      } else {
-        Alert.alert("错误", "保存失败,请重试");
-      }
+    } catch (e) {
+      console.error("保存失败:", e);
     }
-  }, [words, content, createInspiration, startNewRound]);
 
-  // 分类筛选相关
-  const selectedCategoryId = lib.data?.selectedCategoryId || null;
-  const selectedCategoryName = selectedCategoryId
-    ? lib.getCategory(selectedCategoryId)?.name || "全部词库"
-    : "全部词库";
-  const visibleCategories = lib.getVisibleCategories();
+    clearDraft();
+    setSaveSuccess(true);
+    setLockedIndices([false, false, false]);
 
-  const handleSelectCategory = (categoryId: string | null) => {
-    lib.setSelectedCategory(categoryId);
+    // 1.5秒后自动开始下一轮
+    setTimeout(() => {
+      setSaveSuccess(false);
+      if (timeLeft > 0) {
+        const isFilteredByCategory = !!selectedCategoryId;
+        const newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
+        setWords(newWords);
+        setContent("");
+        setRollerStopCount(0);
+        setState("rolling");
+      } else {
+        setState("idle");
+      }
+    }, 1500);
+  }, [canSave, words, content, timeLeft, availableWords, selectedCategoryId, categoryMap, createInspiration]);
+
+  // 单个roller停止回调
+  const handleRollerStop = useCallback(() => {
+    setRollerStopCount((prev) => {
+      const next = prev + 1;
+      if (next >= 3) {
+        setState("stopped");
+      }
+      return next;
+    });
+  }, []);
+
+  // 切换锁定
+  const toggleLock = useCallback((index: number) => {
+    setLockedIndices((prev) => {
+      const next: [boolean, boolean, boolean] = [...prev];
+      // 不允许锁定全部3个
+      const lockedCount = next.filter((l) => l).length;
+      if (!next[index] && lockedCount >= 2) {
+        // 已锁定2个,不允许再锁定第3个
+        return prev;
+      }
+      next[index] = !next[index];
+      return next;
+    });
+  }, []);
+
+  // 分类选择
+  const handleSelectCategory = useCallback((categoryId: string | null) => {
+    setSelectedCategory(categoryId);
     setShowCategoryPicker(false);
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const canSave = content.trim().length > 0;
-  const isRolling = appState === "rolling";
-  const showTimer = appState !== "idle" && (timerActive || timeLeft === 0);
-  const availableWords = getAvailableWords();
+  }, [setSelectedCategory]);
 
   return (
-    <ScreenContainer className="bg-background">
-      {/* 首次启动引导 */}
-      <OnboardingGuide
-        visible={showOnboarding}
-        onComplete={() => setShowOnboarding(false)}
-      />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+    <ScreenContainer>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.container}>
-          {/* 标题区域 */}
+          {/* 标题 + 计时器 */}
           <View style={styles.header}>
             <Text style={styles.title}>灵 感</Text>
-
-            {showTimer && (
+            {state !== "idle" && state !== "timeup" && (
               <Text style={[
                 styles.timer,
-                timeLeft <= 60 && timeLeft > 0 && styles.timerWarning,
-                timeLeft === 0 && styles.timerExpired,
+                timeLeft <= 60 && styles.timerWarning,
+                timeLeft <= 10 && styles.timerExpired,
               ]}>
-                {timeLeft === 0 ? "时间到" : `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`}
+                {formatTime(timeLeft)}
               </Text>
             )}
           </View>
 
-          {/* 时间到提示 */}
-          {timeUp && (
+          {/* 时间到 */}
+          {state === "timeup" && (
             <View style={styles.timeUpContainer}>
               <Text style={styles.timeUpTitle}>今日灵感时间结束</Text>
-              <Text style={styles.timeUpSubtitle}>明天再来继续探索吧</Text>
+              <Text style={styles.timeUpSubtitle}>明天继续探索灵感</Text>
             </View>
           )}
 
-          {/* ===== 状态1: 初始状态 ===== */}
-          {appState === "idle" && !timeUp && (
+          {/* 状态1: 初始状态 */}
+          {state === "idle" && (
             <View style={styles.idleContainer}>
               {/* 分类筛选器 */}
               <Pressable
@@ -290,70 +290,79 @@ export default function HomeScreen() {
                 style={({ pressed }) => [styles.categoryFilter, pressed && styles.filterPressed]}
               >
                 <Text style={styles.categoryFilterText}>{selectedCategoryName}</Text>
-                <Text style={styles.categoryFilterArrow}>▾</Text>
+                <Text style={styles.categoryFilterArrow}>▼</Text>
               </Pressable>
 
               <Pressable
-                onPress={handleFirstStart}
-                style={({ pressed }) => [
-                  styles.startButton,
-                  pressed && styles.buttonPressed,
-                ]}
+                onPress={handleStart}
+                style={({ pressed }) => [styles.startButton, pressed && styles.buttonPressed]}
               >
                 <Text style={styles.startButtonText}>开 始</Text>
               </Pressable>
             </View>
           )}
 
-          {/* ===== 状态2: 动画播放中 ===== */}
-          {appState === "rolling" && !timeUp && (
+          {/* 状态2: 动画播放中 */}
+          {state === "rolling" && (
             <View style={styles.rollersContainer}>
               <WordRoller
                 word={words[0]}
-                isRolling={isRolling}
+                isRolling={true}
                 delay={1800}
                 onStop={handleRollerStop}
                 words={availableWords}
+                isLocked={lockedIndices[0]}
               />
               <WordRoller
                 word={words[1]}
-                isRolling={isRolling}
-                delay={2100}
+                isRolling={true}
+                delay={2200}
                 onStop={handleRollerStop}
                 words={availableWords}
+                isLocked={lockedIndices[1]}
               />
               <WordRoller
                 word={words[2]}
-                isRolling={isRolling}
-                delay={2400}
+                isRolling={true}
+                delay={2600}
                 onStop={handleRollerStop}
                 words={availableWords}
+                isLocked={lockedIndices[2]}
               />
             </View>
           )}
 
-          {/* ===== 状态3: 抽词完成 ===== */}
-          {appState === "stopped" && !timeUp && (
+          {/* 状态3: 抽词完成 */}
+          {state === "stopped" && (
             <>
-              {/* 三个词定格显示 */}
+              {/* 三个词定格显示(带锁图标) */}
               <View style={styles.wordsDisplayContainer}>
                 <WordRoller
                   word={words[0]}
                   isRolling={false}
                   delay={0}
                   words={availableWords}
+                  isLocked={lockedIndices[0]}
+                  onToggleLock={() => toggleLock(0)}
+                  showLock={true}
                 />
                 <WordRoller
                   word={words[1]}
                   isRolling={false}
                   delay={0}
                   words={availableWords}
+                  isLocked={lockedIndices[1]}
+                  onToggleLock={() => toggleLock(1)}
+                  showLock={true}
                 />
                 <WordRoller
                   word={words[2]}
                   isRolling={false}
                   delay={0}
                   words={availableWords}
+                  isLocked={lockedIndices[2]}
+                  onToggleLock={() => toggleLock(2)}
+                  showLock={true}
                 />
               </View>
 
@@ -383,7 +392,9 @@ export default function HomeScreen() {
                         pressed && styles.buttonPressed,
                       ]}
                     >
-                      <Text style={styles.secondaryButtonText}>换一组</Text>
+                      <Text style={styles.secondaryButtonText}>
+                        {lockedIndices.some((l) => l) ? "换未锁定" : "换一组"}
+                      </Text>
                     </Pressable>
 
                     <Pressable
@@ -485,14 +496,14 @@ const styles = StyleSheet.create({
 
   /* 状态2: 动画播放中 */
   rollersContainer: {
-    flexDirection: "row", justifyContent: "center", alignItems: "center",
+    flexDirection: "row", justifyContent: "center", alignItems: "flex-start",
     marginTop: 40, marginBottom: 40, gap: 8,
   },
 
   /* 状态3: 抽词完成 */
   wordsDisplayContainer: {
-    flexDirection: "row", justifyContent: "center", alignItems: "center",
-    marginTop: 20, marginBottom: 32, gap: 8,
+    flexDirection: "row", justifyContent: "center", alignItems: "flex-start",
+    marginTop: 20, marginBottom: 24, gap: 8,
   },
   inputSection: { paddingHorizontal: 4, marginBottom: 40 },
   input: {
