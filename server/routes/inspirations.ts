@@ -7,7 +7,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { inspirations, type Inspiration } from "../../drizzle/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql, count } from "drizzle-orm";
 
 export const inspirationsRouter = router({
   /**
@@ -82,6 +82,59 @@ export const inspirationsRouter = router({
       await db.update(inspirations).set({ content: input.content }).where(eq(inspirations.id, input.id));
       return { success: true };
     }),
+
+  /**
+   * 获取灵感统计数据
+   */
+  stats: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) {
+      return { total: 0, todayCount: 0, weekCount: 0, streakDays: 0 };
+    }
+
+    // 总数
+    const totalResult = await db.select({ count: count() }).from(inspirations);
+    const total = totalResult[0]?.count || 0;
+
+    // 今日数量
+    const todayResult = await db.select({ count: count() }).from(inspirations)
+      .where(sql`DATE(${inspirations.createdAt}) = CURDATE()`);
+    const todayCount = todayResult[0]?.count || 0;
+
+    // 本周数量
+    const weekResult = await db.select({ count: count() }).from(inspirations)
+      .where(sql`${inspirations.createdAt} >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+    const weekCount = weekResult[0]?.count || 0;
+
+    // 连续天数(从今天往前数连续有记录的天数)
+    const daysResult = await db.select({
+      day: sql<string>`DATE(${inspirations.createdAt})`,
+    }).from(inspirations)
+      .groupBy(sql`DATE(${inspirations.createdAt})`)
+      .orderBy(desc(sql`DATE(${inspirations.createdAt})`));
+
+    let streakDays = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < daysResult.length; i++) {
+      const dayStr = daysResult[i].day;
+      const dayDate = new Date(dayStr);
+      dayDate.setHours(0, 0, 0, 0);
+
+      const expectedDate = new Date(today);
+      expectedDate.setDate(expectedDate.getDate() - i);
+      expectedDate.setHours(0, 0, 0, 0);
+
+      if (dayDate.getTime() === expectedDate.getTime()) {
+        streakDays++;
+      } else {
+        break;
+      }
+    }
+
+    return { total, todayCount, weekCount, streakDays };
+  }),
 
   /**
    * 删除灵感记录

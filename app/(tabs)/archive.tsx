@@ -1,6 +1,6 @@
 /**
  * 灵感列表页面
- * 展示所有已保存的灵感记录
+ * 顶部显示灵感统计面板,下方展示所有已保存的灵感记录
  * 点击卡片进入详情页查看/编辑
  */
 
@@ -14,6 +14,7 @@ import { trpc } from "@/lib/trpc";
 export default function ArchiveScreen() {
   const router = useRouter();
   const { data: inspirations = [], isLoading, refetch } = trpc.inspirations.list.useQuery();
+  const { data: stats } = trpc.inspirations.stats.useQuery();
   const deleteInspiration = trpc.inspirations.delete.useMutation();
 
   const handleCardPress = (id: number) => {
@@ -65,10 +66,9 @@ export default function ArchiveScreen() {
 
   const formatDate = (date: Date) => {
     const d = new Date(date);
-    const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    return `${month}-${day}`;
   };
 
   const renderRightActions = (item: any) => {
@@ -81,6 +81,37 @@ export default function ArchiveScreen() {
       </Pressable>
     );
   };
+
+  const renderHeader = () => (
+    <View>
+      {/* 统计面板 */}
+      {stats && (
+        <View style={styles.statsPanel}>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.total}</Text>
+              <Text style={styles.statLabel}>累计灵感</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.todayCount}</Text>
+              <Text style={styles.statLabel}>今日</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.weekCount}</Text>
+              <Text style={styles.statLabel}>本周</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.streakDays}</Text>
+              <Text style={styles.statLabel}>连续天</Text>
+            </View>
+          </View>
+        </View>
+      )}
+    </View>
+  );
 
   const renderItem = ({ item }: { item: any }) => {
     const summary = item.content.length > 60 ? item.content.slice(0, 60) + "..." : item.content;
@@ -127,6 +158,7 @@ export default function ArchiveScreen() {
           </View>
         ) : inspirations.length === 0 ? (
           <View style={styles.emptyContainer}>
+            {renderHeader()}
             <Text style={styles.emptyText}>还没有保存任何灵感</Text>
             <Text style={styles.emptyHint}>去主页生成你的第一个灵感吧</Text>
           </View>
@@ -137,6 +169,7 @@ export default function ArchiveScreen() {
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            ListHeaderComponent={renderHeader}
           />
         )}
       </View>
@@ -145,88 +178,36 @@ export default function ArchiveScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 32,
-    paddingTop: 80,
+  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60 },
+  header: { alignItems: "center", marginBottom: 24 },
+  title: { fontSize: 32, fontWeight: "300", color: "#2C2C2C", letterSpacing: 8 },
+
+  /* 统计面板 */
+  statsPanel: {
+    backgroundColor: "#FAFAFA", borderRadius: 16, padding: 20, marginBottom: 24,
+    borderWidth: 1, borderColor: "#F0F0F0",
   },
-  header: {
-    alignItems: "center",
-    marginBottom: 50,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "300",
-    color: "#2C2C2C",
-    letterSpacing: 8,
-  },
-  listContent: {
-    paddingBottom: 40,
-  },
-  card: {
-    backgroundColor: "#FAFAFA",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-  },
-  cardPressed: {
-    opacity: 0.7,
-  },
-  wordsContainer: {
-    marginBottom: 12,
-  },
-  words: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#5A6C7D",
-    letterSpacing: 1,
-  },
-  content: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: "#2C2C2C",
-    marginBottom: 12,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  date: {
-    fontSize: 12,
-    color: "#8A8A8A",
-  },
-  viewHint: {
-    fontSize: 12,
-    color: "#AFAFAF",
-    letterSpacing: 0.5,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: "#8A8A8A",
-    marginBottom: 12,
-  },
-  emptyHint: {
-    fontSize: 14,
-    color: "#AFAFAF",
-  },
+  statsRow: { flexDirection: "row", justifyContent: "space-around", alignItems: "center" },
+  statItem: { alignItems: "center", flex: 1 },
+  statNumber: { fontSize: 28, fontWeight: "300", color: "#2C2C2C", letterSpacing: 1 },
+  statLabel: { fontSize: 12, color: "#8A8A8A", marginTop: 4, letterSpacing: 1 },
+  statDivider: { width: 1, height: 32, backgroundColor: "#E8E8E8" },
+
+  listContent: { paddingBottom: 40 },
+  card: { backgroundColor: "#FAFAFA", borderRadius: 12, padding: 20, marginBottom: 16 },
+  cardPressed: { opacity: 0.7 },
+  wordsContainer: { marginBottom: 12 },
+  words: { fontSize: 18, fontWeight: "600", color: "#5A6C7D", letterSpacing: 1 },
+  content: { fontSize: 16, lineHeight: 24, color: "#2C2C2C", marginBottom: 12 },
+  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  date: { fontSize: 12, color: "#8A8A8A" },
+  viewHint: { fontSize: 12, color: "#AFAFAF", letterSpacing: 0.5 },
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 40 },
+  emptyText: { fontSize: 18, color: "#8A8A8A", marginBottom: 12 },
+  emptyHint: { fontSize: 14, color: "#AFAFAF" },
   deleteButton: {
-    backgroundColor: "#C9A87C",
-    justifyContent: "center",
-    alignItems: "center",
-    width: 80,
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: "#C9A87C", justifyContent: "center", alignItems: "center",
+    width: 80, borderRadius: 12, marginBottom: 16,
   },
-  deleteButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "500",
-  },
+  deleteButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "500" },
 });

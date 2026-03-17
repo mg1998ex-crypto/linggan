@@ -4,19 +4,21 @@
  * 状态机:
  * idle → rolling → stopped → (保存后自动rolling) → stopped → ...
  * 5分钟计时器在首次"开始"时启动,持续倒计时直到归零
+ * 5分钟到后用户继续抽词,从5:01开始继续计时(超时模式)
  * 
- * 新功能: 锁定词语部分重抽
+ * 功能: 锁定词语部分重抽 + 指定词随机组合 + 分类筛选
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, TextInput, Pressable, ScrollView, StyleSheet,
-  Platform, Alert, FlatList, Modal, Keyboard,
+  Platform, Alert, FlatList, Modal, Keyboard, Dimensions,
 } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { WordRoller } from "@/components/word-roller";
-import { getRandomWords, getPartialRandomWords } from "@/lib/word-filter";
+import { getRandomWords, getPartialRandomWords, getRandomWord } from "@/lib/word-filter";
 import { trpc } from "@/lib/trpc";
 import { useWordLibrary } from "@/lib/word-library-context";
 import { saveDraft, loadDraft, clearDraft, type Draft } from "@/lib/draft-storage";
@@ -24,6 +26,7 @@ import { saveDraft, loadDraft, clearDraft, type Draft } from "@/lib/draft-storag
 type AppState = "idle" | "rolling" | "stopped" | "timeup";
 
 const TOTAL_TIME = 5 * 60; // 5分钟
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function HomeScreen() {
   const [state, setState] = useState<AppState>("idle");
@@ -34,6 +37,11 @@ export default function HomeScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [lockedIndices, setLockedIndices] = useState<[boolean, boolean, boolean]>([false, false, false]);
   const [rollerStopCount, setRollerStopCount] = useState(0);
+  const [isOvertime, setIsOvertime] = useState(false); // 超时模式(5分钟到后继续)
+
+  // 指定词功能
+  const [showCustomWordInput, setShowCustomWordInput] = useState(false);
+  const [customWord, setCustomWord] = useState("");
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerStarted = useRef(false);
@@ -82,21 +90,22 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // 计时器
+  // 清理计时器
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
 
-  const startTimer = useCallback(() => {
-    if (timerStarted.current) return;
-    timerStarted.current = true;
+  // 启动计时器(倒计时模式)
+  const startCountdown = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           if (timerRef.current) clearInterval(timerRef.current);
           timerRef.current = null;
+          timerStarted.current = false;
           setState("timeup");
           return 0;
         }
@@ -104,6 +113,25 @@ export default function HomeScreen() {
       });
     }, 1000);
   }, []);
+
+  // 启动计时器(超时正计时模式 - 从5:01开始)
+  const startOvertimeCounter = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setIsOvertime(true);
+    setTimeLeft(TOTAL_TIME + 1); // 5:01
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => prev + 1);
+    }, 1000);
+  }, []);
+
+  // 首次启动计时器
+  const startTimer = useCallback(() => {
+    if (timerStarted.current) return;
+    timerStarted.current = true;
+    setIsOvertime(false);
+    setTimeLeft(TOTAL_TIME);
+    startCountdown();
+  }, [startCountdown]);
 
   // 自动保存草稿
   useEffect(() => {
@@ -122,6 +150,7 @@ export default function HomeScreen() {
         setContent("");
         setTimeLeft(TOTAL_TIME);
         timerStarted.current = false;
+        setIsOvertime(false);
         setLockedIndices([false, false, false]);
       }, 3000);
       return () => clearTimeout(timer);
@@ -156,6 +185,39 @@ export default function HomeScreen() {
     setRollerStopCount(0);
     setState("rolling");
   }, [availableWords, startTimer, selectedCategoryId, categoryMap]);
+
+  // 指定词开始抽词
+  const handleCustomWordStart = useCallback(() => {
+    const trimmed = customWord.trim();
+    if (!trimmed) return;
+    if (availableWords.length < 3) {
+      const msg = "当前词库词语不足3个";
+      if (Platform.OS === "web") alert(msg);
+      else Alert.alert("提示", msg);
+      return;
+    }
+
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    Keyboard.dismiss();
+    setShowCustomWordInput(false);
+
+    startTimer();
+
+    // 指定词放在第一位,随机匹配另外两个
+    const word2 = getRandomWord(availableWords, [trimmed]);
+    const word3 = getRandomWord(availableWords, [trimmed, word2]);
+    const newWords: [string, string, string] = [trimmed, word2, word3];
+    setWords(newWords);
+    setContent("");
+    // 指定词自动锁定
+    setLockedIndices([true, false, false]);
+    setRollerStopCount(0);
+    setState("rolling");
+    setCustomWord("");
+  }, [customWord, availableWords, startTimer]);
 
   // 换一组(支持锁定)
   const handleRestart = useCallback(() => {
@@ -210,18 +272,20 @@ export default function HomeScreen() {
     // 1.5秒后自动开始下一轮
     setTimeout(() => {
       setSaveSuccess(false);
-      if (timeLeft > 0) {
-        const isFilteredByCategory = !!selectedCategoryId;
-        const newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
-        setWords(newWords);
-        setContent("");
-        setRollerStopCount(0);
-        setState("rolling");
-      } else {
-        setState("idle");
+      // 无论计时器是否到期,都继续下一轮
+      const isFilteredByCategory = !!selectedCategoryId;
+      const newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
+      setWords(newWords);
+      setContent("");
+      setRollerStopCount(0);
+      setState("rolling");
+
+      // 如果计时器已到期,启动超时正计时
+      if (!timerStarted.current && !isOvertime) {
+        startOvertimeCounter();
       }
     }, 1500);
-  }, [canSave, words, content, timeLeft, availableWords, selectedCategoryId, categoryMap, createInspiration]);
+  }, [canSave, words, content, availableWords, selectedCategoryId, categoryMap, createInspiration, isOvertime, startOvertimeCounter]);
 
   // 单个roller停止回调
   const handleRollerStop = useCallback(() => {
@@ -241,7 +305,6 @@ export default function HomeScreen() {
       // 不允许锁定全部3个
       const lockedCount = next.filter((l) => l).length;
       if (!next[index] && lockedCount >= 2) {
-        // 已锁定2个,不允许再锁定第3个
         return prev;
       }
       next[index] = !next[index];
@@ -265,10 +328,11 @@ export default function HomeScreen() {
             {state !== "idle" && state !== "timeup" && (
               <Text style={[
                 styles.timer,
-                timeLeft <= 60 && styles.timerWarning,
-                timeLeft <= 10 && styles.timerExpired,
+                !isOvertime && timeLeft <= 60 && styles.timerWarning,
+                !isOvertime && timeLeft <= 10 && styles.timerExpired,
+                isOvertime && styles.timerOvertime,
               ]}>
-                {formatTime(timeLeft)}
+                {isOvertime ? `+${formatTime(timeLeft - TOTAL_TIME)}` : formatTime(timeLeft)}
               </Text>
             )}
           </View>
@@ -298,6 +362,15 @@ export default function HomeScreen() {
                 style={({ pressed }) => [styles.startButton, pressed && styles.buttonPressed]}
               >
                 <Text style={styles.startButtonText}>开 始</Text>
+              </Pressable>
+
+              {/* 指定词入口 */}
+              <Pressable
+                onPress={() => setShowCustomWordInput(true)}
+                style={({ pressed }) => [styles.customWordLink, pressed && { opacity: 0.5 }]}
+              >
+                <MaterialIcons name="edit" size={14} color="#AFAFAF" />
+                <Text style={styles.customWordLinkText}>指定一个词</Text>
               </Pressable>
             </View>
           )}
@@ -458,6 +531,49 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* 指定词输入弹窗 */}
+      <Modal visible={showCustomWordInput} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => { setShowCustomWordInput(false); Keyboard.dismiss(); }}>
+          <Pressable style={styles.customWordModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>指定一个词</Text>
+            <Text style={styles.customWordHint}>输入你想要的词,系统将随机匹配另外两个词</Text>
+            <TextInput
+              style={styles.customWordInput}
+              placeholder="输入词语..."
+              placeholderTextColor="#BDBDBD"
+              value={customWord}
+              onChangeText={setCustomWord}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={customWord.trim() ? handleCustomWordStart : undefined}
+              maxLength={10}
+            />
+            <View style={styles.customWordActions}>
+              <Pressable
+                onPress={() => { setShowCustomWordInput(false); setCustomWord(""); Keyboard.dismiss(); }}
+                style={({ pressed }) => [styles.customWordCancel, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.customWordCancelText}>取消</Text>
+              </Pressable>
+              <Pressable
+                onPress={customWord.trim() ? handleCustomWordStart : undefined}
+                disabled={!customWord.trim()}
+                style={({ pressed }) => [
+                  styles.customWordConfirm,
+                  !customWord.trim() && styles.customWordConfirmDisabled,
+                  pressed && customWord.trim() && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[
+                  styles.customWordConfirmText,
+                  !customWord.trim() && styles.customWordConfirmTextDisabled,
+                ]}>开始抽词</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -470,6 +586,7 @@ const styles = StyleSheet.create({
   timer: { marginTop: 16, fontSize: 18, fontWeight: "400", color: "#5A5A5A", letterSpacing: 2 },
   timerWarning: { color: "#D4A574" },
   timerExpired: { color: "#C9A87C" },
+  timerOvertime: { color: "#C9A87C", fontWeight: "300" },
 
   timeUpContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 120 },
   timeUpTitle: { fontSize: 22, fontWeight: "400", color: "#2C2C2C", letterSpacing: 4, marginBottom: 12 },
@@ -493,6 +610,12 @@ const styles = StyleSheet.create({
     borderRadius: 40, borderWidth: 1, borderColor: "#2C2C2C",
   },
   startButtonText: { fontSize: 18, fontWeight: "400", color: "#FFFFFF", letterSpacing: 6 },
+
+  /* 指定词入口 */
+  customWordLink: {
+    flexDirection: "row", alignItems: "center", marginTop: 24, paddingVertical: 8, paddingHorizontal: 12,
+  },
+  customWordLinkText: { fontSize: 13, color: "#AFAFAF", letterSpacing: 1, marginLeft: 4 },
 
   /* 状态2: 动画播放中 */
   rollersContainer: {
@@ -529,7 +652,7 @@ const styles = StyleSheet.create({
   toastContainer: { alignItems: "center", marginTop: 40 },
   toastText: { fontSize: 16, color: "#5A5A5A", letterSpacing: 2 },
 
-  /* 分类选择弹窗 */
+  /* 弹窗通用 */
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center",
     alignItems: "center", paddingHorizontal: 32,
@@ -554,4 +677,26 @@ const styles = StyleSheet.create({
     borderRadius: 24, alignItems: "center",
   },
   modalCloseText: { fontSize: 15, color: "#5A5A5A" },
+
+  /* 指定词弹窗 */
+  customWordModal: {
+    backgroundColor: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 340,
+  },
+  customWordHint: { fontSize: 13, color: "#8A8A8A", textAlign: "center", marginBottom: 20, lineHeight: 18 },
+  customWordInput: {
+    backgroundColor: "#FAFAFA", borderRadius: 12, padding: 16, fontSize: 18,
+    textAlign: "center", color: "#2C2C2C", borderWidth: 1, borderColor: "#F0F0F0",
+    letterSpacing: 2,
+  },
+  customWordActions: { flexDirection: "row", marginTop: 20, gap: 12 },
+  customWordCancel: {
+    flex: 1, paddingVertical: 14, backgroundColor: "#F5F5F5", borderRadius: 24, alignItems: "center",
+  },
+  customWordCancelText: { fontSize: 15, color: "#5A5A5A" },
+  customWordConfirm: {
+    flex: 1, paddingVertical: 14, backgroundColor: "#2C2C2C", borderRadius: 24, alignItems: "center",
+  },
+  customWordConfirmDisabled: { backgroundColor: "#E0E0E0" },
+  customWordConfirmText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500" },
+  customWordConfirmTextDisabled: { color: "#BDBDBD" },
 });
