@@ -245,7 +245,7 @@ export default function CategoryDetailScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="搜索词语..."
-            placeholderTextColor="#AFAFAF"
+            placeholderTextColor="#B0B0B5"
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
@@ -302,7 +302,7 @@ export default function CategoryDetailScreen() {
                   <TextInput
                     style={styles.modalInput}
                     placeholder="输入词语"
-                    placeholderTextColor="#AFAFAF"
+                    placeholderTextColor="#B0B0B5"
                     value={singleWordInput}
                     onChangeText={setSingleWordInput}
                     autoFocus
@@ -336,7 +336,7 @@ export default function CategoryDetailScreen() {
                   <TextInput
                     style={[styles.modalInput, styles.batchInput]}
                     placeholder="每行一个词语，或用逗号/顿号分隔"
-                    placeholderTextColor="#AFAFAF"
+                    placeholderTextColor="#B0B0B5"
                     value={batchWordInput}
                     onChangeText={setBatchWordInput}
                     multiline
@@ -404,50 +404,51 @@ export default function CategoryDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { fontSize: 16, color: "#8A8A8A" },
+  loadingText: { fontSize: 16, color: "#8E8E93" },
   backLink: { marginTop: 16 },
-  backLinkText: { fontSize: 15, color: "#5A5A5A" },
+  backLinkText: { fontSize: 15, color: "#F5A623" },
 
   topBar: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   backButton: { paddingVertical: 8, paddingRight: 16 },
-  backButtonText: { fontSize: 16, color: "#5A5A5A" },
+  backButtonText: { fontSize: 16, color: "#8E8E93" },
 
   header: { alignItems: "center", marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: "400", color: "#2C2C2C", letterSpacing: 4 },
-  subtitle: { marginTop: 6, fontSize: 14, color: "#8A8A8A" },
+  title: { fontSize: 24, fontWeight: "400", color: "#2D2D2D", letterSpacing: 4 },
+  subtitle: { marginTop: 6, fontSize: 14, color: "#8E8E93" },
 
   importResultBanner: {
-    backgroundColor: "#F0FAF0", borderRadius: 8, padding: 12, marginBottom: 12, alignItems: "center",
+    backgroundColor: "#FFF8EE", borderRadius: 8, padding: 12, marginBottom: 12, alignItems: "center",
+    borderWidth: 1, borderColor: "#F5D9A8",
   },
-  importResultText: { fontSize: 14, color: "#2E7D32" },
+  importResultText: { fontSize: 14, color: "#C48A1A" },
 
   actionBar: { flexDirection: "row", gap: 12, marginBottom: 16 },
   actionBarButton: {
-    flex: 1, paddingVertical: 12, backgroundColor: "#FAFAFA", borderRadius: 10,
-    alignItems: "center", borderWidth: 1, borderColor: "#F0F0F0",
+    flex: 1, paddingVertical: 12, backgroundColor: "#FFF8EE", borderRadius: 10,
+    alignItems: "center", borderWidth: 1, borderColor: "#F5D9A8",
   },
-  actionBarButtonText: { fontSize: 14, color: "#2C2C2C" },
+  actionBarButtonText: { fontSize: 14, color: "#C48A1A" },
   actionPressed: { opacity: 0.7 },
 
   searchContainer: { marginBottom: 12 },
   searchInput: {
-    backgroundColor: "#FAFAFA", borderRadius: 10, paddingHorizontal: 16,
-    paddingVertical: 10, fontSize: 15, color: "#2C2C2C", borderWidth: 1, borderColor: "#F0F0F0",
+    backgroundColor: "#FFFCF7", borderRadius: 10, paddingHorizontal: 16,
+    paddingVertical: 10, fontSize: 15, color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8",
   },
 
   wordList: { paddingBottom: 40 },
   wordItem: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: "#F0F0F0",
+    paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: "#F0EDE8",
   },
   wordInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
-  wordText: { fontSize: 16, color: "#2C2C2C" },
-  systemBadge: { fontSize: 11, color: "#AFAFAF", marginLeft: 8, backgroundColor: "#F5F5F5", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  wordText: { fontSize: 16, color: "#2D2D2D" },
+  systemBadge: { fontSize: 11, color: "#B0B0B5", marginLeft: 8, backgroundColor: "#FFF8EE", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   wordActions: { flexDirection: "row", gap: 8 },
   wordActionButton: { paddingVertical: 6, paddingHorizontal: 10 },
-  wordActionText: { fontSize: 13, color: "#5A5A5A" },
+  wordActionText: { fontSize: 13, color: "#8E8E93" },
   deleteActionText: { color: "#E74C3C" },
-  emptyText: { textAlign: "center", fontSize: 15, color: "#AFAFAF", marginTop: 40 },
+  emptyText: { textAlign: "center", fontSize: 15, color: "#B0B0B5", marginTop: 40 },
 
   // Modal
   modalOverlay: {
@@ -457,34 +458,34 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 360,
   },
-  modalTitle: { fontSize: 18, fontWeight: "500", color: "#2C2C2C", marginBottom: 16, textAlign: "center" },
+  modalTitle: { fontSize: 18, fontWeight: "500", color: "#2D2D2D", marginBottom: 16, textAlign: "center" },
   modalInput: {
-    backgroundColor: "#FAFAFA", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
-    fontSize: 15, color: "#2C2C2C", borderWidth: 1, borderColor: "#F0F0F0", marginBottom: 16,
+    backgroundColor: "#FFFCF7", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
+    fontSize: 15, color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8", marginBottom: 16,
   },
   batchInput: { minHeight: 120, textAlignVertical: "top" },
   modalButtons: { flexDirection: "row", gap: 12 },
   modalButton: { flex: 1, paddingVertical: 14, borderRadius: 24, alignItems: "center" },
-  modalCancelButton: { backgroundColor: "#F5F5F5" },
-  modalCancelText: { fontSize: 15, color: "#5A5A5A" },
-  modalConfirmButton: { backgroundColor: "#2C2C2C" },
+  modalCancelButton: { backgroundColor: "#FFF8EE" },
+  modalCancelText: { fontSize: 15, color: "#8E8E93" },
+  modalConfirmButton: { backgroundColor: "#F5A623" },
   modalConfirmText: { fontSize: 15, color: "#FFFFFF" },
-  modalButtonDisabled: { backgroundColor: "#E0E0E0" },
-  modalConfirmTextDisabled: { color: "#AFAFAF" },
+  modalButtonDisabled: { backgroundColor: "#F0EDE8" },
+  modalConfirmTextDisabled: { color: "#B0B0B5" },
 
-  modeSwitch: { flexDirection: "row", marginBottom: 16, backgroundColor: "#F5F5F5", borderRadius: 8, padding: 2 },
+  modeSwitch: { flexDirection: "row", marginBottom: 16, backgroundColor: "#FFF8EE", borderRadius: 8, padding: 2 },
   modeSwitchButton: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
   modeSwitchActive: { backgroundColor: "#FFFFFF" },
-  modeSwitchText: { fontSize: 14, color: "#8A8A8A" },
-  modeSwitchTextActive: { color: "#2C2C2C", fontWeight: "500" },
+  modeSwitchText: { fontSize: 14, color: "#8E8E93" },
+  modeSwitchTextActive: { color: "#2D2D2D", fontWeight: "500" },
 
-  moveWordLabel: { fontSize: 14, color: "#5A5A5A", marginBottom: 12, textAlign: "center" },
+  moveWordLabel: { fontSize: 14, color: "#8E8E93", marginBottom: 12, textAlign: "center" },
   moveCategoryList: { maxHeight: 300 },
   moveCategoryItem: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 14, paddingHorizontal: 12, backgroundColor: "#FAFAFA",
-    borderRadius: 8, marginBottom: 8,
+    paddingVertical: 14, paddingHorizontal: 12, backgroundColor: "#FFFCF7",
+    borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: "#F0EDE8",
   },
-  moveCategoryName: { fontSize: 15, color: "#2C2C2C" },
-  moveCategoryCount: { fontSize: 13, color: "#8A8A8A" },
+  moveCategoryName: { fontSize: 15, color: "#2D2D2D" },
+  moveCategoryCount: { fontSize: 13, color: "#8E8E93" },
 });

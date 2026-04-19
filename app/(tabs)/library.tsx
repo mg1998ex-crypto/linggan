@@ -124,7 +124,7 @@ export default function LibraryScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="搜索词语..."
-            placeholderTextColor="#AFAFAF"
+            placeholderTextColor="#B0B0B5"
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
@@ -184,7 +184,7 @@ export default function LibraryScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder="输入分类名称"
-              placeholderTextColor="#AFAFAF"
+              placeholderTextColor="#B0B0B5"
               value={newCategoryName}
               onChangeText={setNewCategoryName}
               autoFocus
@@ -275,46 +275,47 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { fontSize: 16, color: "#8A8A8A" },
+  loadingText: { fontSize: 16, color: "#8E8E93" },
   header: { alignItems: "center", marginBottom: 24 },
-  title: { fontSize: 32, fontWeight: "300", color: "#2C2C2C", letterSpacing: 8 },
-  subtitle: { marginTop: 8, fontSize: 14, color: "#8A8A8A", letterSpacing: 1 },
+  title: { fontSize: 32, fontWeight: "300", color: "#2D2D2D", letterSpacing: 8 },
+  subtitle: { marginTop: 8, fontSize: 14, color: "#8E8E93", letterSpacing: 1 },
   searchContainer: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
   searchInput: {
-    flex: 1, backgroundColor: "#FAFAFA", borderRadius: 10, paddingHorizontal: 16,
-    paddingVertical: 12, fontSize: 15, color: "#2C2C2C", borderWidth: 1, borderColor: "#F0F0F0",
+    flex: 1, backgroundColor: "#FFFCF7", borderRadius: 10, paddingHorizontal: 16,
+    paddingVertical: 12, fontSize: 15, color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8",
   },
-  clearButton: { marginLeft: 12, paddingVertical: 8, paddingHorizontal: 4 },
-  clearButtonText: { fontSize: 14, color: "#8A8A8A" },
+  clearButton: { marginLeft: 12, paddingVertical: 8, paddingHorizontal: 12 },
+  clearButtonText: { fontSize: 14, color: "#8E8E93" },
   searchResultsContainer: { flex: 1 },
-  searchResultsTitle: { fontSize: 14, color: "#8A8A8A", marginBottom: 12 },
+  searchResultsTitle: { fontSize: 14, color: "#8E8E93", marginBottom: 12 },
   searchResultItem: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 14, paddingHorizontal: 16, backgroundColor: "#FAFAFA",
-    borderRadius: 10, marginBottom: 8,
+    paddingVertical: 14, paddingHorizontal: 16, backgroundColor: "#FFFCF7",
+    borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: "#F0EDE8",
   },
-  searchResultWord: { fontSize: 16, fontWeight: "500", color: "#2C2C2C" },
-  searchResultCategory: { fontSize: 13, color: "#8A8A8A" },
-  emptyText: { textAlign: "center", fontSize: 15, color: "#AFAFAF", marginTop: 40 },
+  searchResultWord: { fontSize: 16, fontWeight: "500", color: "#2D2D2D" },
+  searchResultCategory: { fontSize: 13, color: "#8E8E93" },
+  emptyText: { textAlign: "center", fontSize: 15, color: "#B0B0B5", marginTop: 40 },
   categoryList: { paddingBottom: 40 },
   categoryRow: { justifyContent: "space-between", marginBottom: 12 },
   categoryCard: {
-    width: "48%", backgroundColor: "#FAFAFA", borderRadius: 12,
+    width: "48%", backgroundColor: "#FFFFFF", borderRadius: 12,
     padding: 16, minHeight: 90, justifyContent: "space-between",
+    borderWidth: 1, borderColor: "#F0EDE8",
   },
-  categoryCardHidden: { backgroundColor: "#F5F5F5", opacity: 0.6 },
-  categoryName: { fontSize: 16, fontWeight: "500", color: "#2C2C2C", marginBottom: 8 },
-  categoryNameHidden: { color: "#8A8A8A" },
-  categoryCount: { fontSize: 13, color: "#8A8A8A" },
-  categoryCountHidden: { color: "#AFAFAF" },
-  hiddenBadge: { fontSize: 11, color: "#AFAFAF", marginTop: 4 },
+  categoryCardHidden: { backgroundColor: "#FAFAF5", opacity: 0.6 },
+  categoryName: { fontSize: 16, fontWeight: "500", color: "#2D2D2D", marginBottom: 8 },
+  categoryNameHidden: { color: "#8E8E93" },
+  categoryCount: { fontSize: 13, color: "#C48A1A" },
+  categoryCountHidden: { color: "#B0B0B5" },
+  hiddenBadge: { fontSize: 11, color: "#B0B0B5", marginTop: 4 },
   cardPressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
   addCategoryCard: {
-    width: "48%", backgroundColor: "#FFFFFF", borderRadius: 12, padding: 16,
+    width: "48%", backgroundColor: "#FFF8EE", borderRadius: 12, padding: 16,
     minHeight: 90, justifyContent: "center", alignItems: "center",
-    borderWidth: 1, borderColor: "#E0E0E0", borderStyle: "dashed",
+    borderWidth: 1, borderColor: "#F5D9A8", borderStyle: "dashed",
   },
-  addCategoryText: { fontSize: 15, color: "#8A8A8A" },
+  addCategoryText: { fontSize: 15, color: "#F5A623" },
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center",
     alignItems: "center", paddingHorizontal: 32,
@@ -322,26 +323,26 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 360,
   },
-  modalTitle: { fontSize: 18, fontWeight: "500", color: "#2C2C2C", marginBottom: 16, textAlign: "center" },
+  modalTitle: { fontSize: 18, fontWeight: "500", color: "#2D2D2D", marginBottom: 16, textAlign: "center" },
   modalInput: {
-    backgroundColor: "#FAFAFA", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
-    fontSize: 15, color: "#2C2C2C", borderWidth: 1, borderColor: "#F0F0F0", marginBottom: 16,
+    backgroundColor: "#FFFCF7", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
+    fontSize: 15, color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8", marginBottom: 16,
   },
   modalButtons: { flexDirection: "row", gap: 12 },
   modalButton: { flex: 1, paddingVertical: 14, borderRadius: 24, alignItems: "center" },
-  modalCancelButton: { backgroundColor: "#F5F5F5" },
-  modalCancelText: { fontSize: 15, color: "#5A5A5A" },
-  modalConfirmButton: { backgroundColor: "#2C2C2C" },
+  modalCancelButton: { backgroundColor: "#FFF8EE" },
+  modalCancelText: { fontSize: 15, color: "#8E8E93" },
+  modalConfirmButton: { backgroundColor: "#F5A623" },
   modalConfirmText: { fontSize: 15, color: "#FFFFFF" },
-  modalButtonDisabled: { backgroundColor: "#E0E0E0" },
-  modalConfirmTextDisabled: { color: "#AFAFAF" },
+  modalButtonDisabled: { backgroundColor: "#F0EDE8" },
+  modalConfirmTextDisabled: { color: "#B0B0B5" },
   manageOptions: { maxHeight: 300 },
   manageOption: { paddingVertical: 14, paddingHorizontal: 4 },
-  manageOptionText: { fontSize: 15, color: "#2C2C2C" },
-  manageDivider: { height: 1, backgroundColor: "#F0F0F0", marginVertical: 4 },
-  manageSectionTitle: { fontSize: 13, color: "#8A8A8A", marginBottom: 8 },
+  manageOptionText: { fontSize: 15, color: "#2D2D2D" },
+  manageDivider: { height: 1, backgroundColor: "#F0EDE8", marginVertical: 4 },
+  manageSectionTitle: { fontSize: 13, color: "#8E8E93", marginBottom: 8 },
   renameSection: { paddingVertical: 8 },
-  renameButton: { backgroundColor: "#2C2C2C", borderRadius: 20, paddingVertical: 10, alignItems: "center" },
+  renameButton: { backgroundColor: "#F5A623", borderRadius: 20, paddingVertical: 10, alignItems: "center" },
   renameButtonText: { fontSize: 14, color: "#FFFFFF" },
   deleteText: { color: "#E74C3C" },
 });

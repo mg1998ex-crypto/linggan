@@ -1,6 +1,7 @@
 /**
  * 灵感详情页面
  * 查看、编辑、删除、分享灵感记录
+ * 包含AI分析占位区域（功能即将推出）
  * 
  * 分享功能:
  * - Web端: Canvas绘制卡片 → 下载PNG图片 / 复制文字
@@ -215,13 +216,24 @@ export default function InspirationDetailScreen() {
       canvas.height = totalHeight * scale;
       ctx.scale(scale, scale);
 
-      // 白色圆角背景
-      drawRoundRect(ctx, 0, 0, cardWidth, totalHeight, 20, "#FFFFFF");
+      // 暖阳渐变背景
+      drawRoundRect(ctx, 0, 0, cardWidth, totalHeight, 20, "#FFFCF7");
+
+      // 顶部装饰线
+      ctx.beginPath();
+      ctx.moveTo(padding, padding - 8);
+      ctx.lineTo(cardWidth - padding, padding - 8);
+      const gradient = ctx.createLinearGradient(padding, 0, cardWidth - padding, 0);
+      gradient.addColorStop(0, "#F5A623");
+      gradient.addColorStop(1, "#F5D9A8");
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
       // 三个词
-      let y = padding;
+      let y = padding + 8;
       ctx.font = "bold 20px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
-      ctx.fillStyle = "#2C2C2C";
+      ctx.fillStyle = "#C48A1A";
       ctx.textAlign = "center";
       ctx.fillText(`${inspiration.word1}  ·  ${inspiration.word2}  ·  ${inspiration.word3}`, cardWidth / 2, y + 28);
       y += wordsHeight + dividerMargin;
@@ -230,14 +242,14 @@ export default function InspirationDetailScreen() {
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(cardWidth - padding, y);
-      ctx.strokeStyle = "#F0F0F0";
+      ctx.strokeStyle = "#F0EDE8";
       ctx.lineWidth = 1;
       ctx.stroke();
       y += dividerMargin;
 
       // 内容文字
       ctx.font = "16px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
-      ctx.fillStyle = "#2C2C2C";
+      ctx.fillStyle = "#2D2D2D";
       ctx.textAlign = "left";
       for (const line of lines) {
         ctx.fillText(line, padding, y + 18);
@@ -249,18 +261,18 @@ export default function InspirationDetailScreen() {
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(cardWidth - padding, y);
-      ctx.strokeStyle = "#F0F0F0";
+      ctx.strokeStyle = "#F0EDE8";
       ctx.lineWidth = 1;
       ctx.stroke();
       y += 20;
 
       // 日期和品牌
       ctx.font = "12px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
-      ctx.fillStyle = "#AFAFAF";
+      ctx.fillStyle = "#B0B0B5";
       ctx.textAlign = "left";
       ctx.fillText(formatShareDate(inspiration.createdAt), padding, y + 10);
       ctx.textAlign = "right";
-      ctx.fillStyle = "#BDBDBD";
+      ctx.fillStyle = "#F5A623";
       ctx.font = "300 14px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
       ctx.fillText("灵 感", cardWidth - padding, y + 10);
 
@@ -309,7 +321,7 @@ export default function InspirationDetailScreen() {
       await new Promise(resolve => setTimeout(resolve, 300));
       const uri = await captureRef(shareCardRef.current, { format: "png", quality: 1, result: "tmpfile" });
       if (Sharing && await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "分享灵感" });
+        await Sharing.shareAsync(uri, { mimeType: "image/png" });
       } else if (MediaLibrary) {
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status === "granted") {
@@ -364,7 +376,7 @@ export default function InspirationDetailScreen() {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#8A8A8A" />
+          <ActivityIndicator size="small" color="#F5A623" />
         </View>
       </ScreenContainer>
     );
@@ -386,6 +398,8 @@ export default function InspirationDetailScreen() {
   // 分享卡片内容（用于截图和预览）
   const ShareCardContent = () => (
     <View style={shareStyles.card}>
+      {/* 顶部装饰线 */}
+      <View style={shareStyles.topAccent} />
       <View style={shareStyles.wordsSection}>
         <Text style={shareStyles.word1}>{inspiration.word1}</Text>
         <Text style={shareStyles.wordDot}>·</Text>
@@ -412,7 +426,7 @@ export default function InspirationDetailScreen() {
             style={({ pressed }) => [styles.navButton, pressed && { opacity: 0.5 }]}
             hitSlop={12}
           >
-            <MaterialIcons name="arrow-back" size={24} color="#2C2C2C" />
+            <MaterialIcons name="arrow-back" size={24} color="#2D2D2D" />
           </Pressable>
           <View style={styles.navActions}>
             {!isEditing ? (
@@ -422,21 +436,21 @@ export default function InspirationDetailScreen() {
                   style={({ pressed }) => [styles.navButton, pressed && { opacity: 0.5 }]}
                   hitSlop={12}
                 >
-                  <MaterialIcons name="ios-share" size={22} color="#2C2C2C" />
+                  <MaterialIcons name="ios-share" size={22} color="#2D2D2D" />
                 </Pressable>
                 <Pressable
                   onPress={handleStartEdit}
                   style={({ pressed }) => [styles.navButton, { marginLeft: 16 }, pressed && { opacity: 0.5 }]}
                   hitSlop={12}
                 >
-                  <MaterialIcons name="edit" size={22} color="#2C2C2C" />
+                  <MaterialIcons name="edit" size={22} color="#2D2D2D" />
                 </Pressable>
                 <Pressable
                   onPress={handleDelete}
                   style={({ pressed }) => [styles.navButton, { marginLeft: 16 }, pressed && { opacity: 0.5 }]}
                   hitSlop={12}
                 >
-                  <MaterialIcons name="delete-outline" size={22} color="#C9A87C" />
+                  <MaterialIcons name="delete-outline" size={22} color="#E74C3C" />
                 </Pressable>
               </>
             ) : null}
@@ -467,7 +481,7 @@ export default function InspirationDetailScreen() {
                 onChangeText={setEditContent}
                 autoFocus
                 placeholder="编辑灵感内容..."
-                placeholderTextColor="#BDBDBD"
+                placeholderTextColor="#B0B0B5"
               />
               <View style={styles.editActions}>
                 <Pressable
@@ -496,6 +510,36 @@ export default function InspirationDetailScreen() {
             <Text style={styles.contentText}>{inspiration.content}</Text>
           )}
         </View>
+
+        {/* AI 分析占位区域 */}
+        {!isEditing && (
+          <View style={styles.aiSection}>
+            <View style={styles.aiHeader}>
+              <MaterialIcons name="auto-awesome" size={18} color="#F5A623" />
+              <Text style={styles.aiTitle}>AI 创意分析</Text>
+              <View style={styles.aiBadge}>
+                <Text style={styles.aiBadgeText}>即将推出</Text>
+              </View>
+            </View>
+            <Text style={styles.aiDescription}>
+              AI 将为你的灵感提供深度分析，包括创意解读、联想拓展和可行性评估。
+            </Text>
+            <View style={styles.aiPreviewItems}>
+              <View style={styles.aiPreviewItem}>
+                <MaterialIcons name="lightbulb-outline" size={16} color="#F5D9A8" />
+                <Text style={styles.aiPreviewText}>创意解读</Text>
+              </View>
+              <View style={styles.aiPreviewItem}>
+                <MaterialIcons name="trending-up" size={16} color="#F5D9A8" />
+                <Text style={styles.aiPreviewText}>创意评分</Text>
+              </View>
+              <View style={styles.aiPreviewItem}>
+                <MaterialIcons name="explore" size={16} color="#F5D9A8" />
+                <Text style={styles.aiPreviewText}>相似灵感</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {!isEditing && (
           <View style={styles.metaSection}>
@@ -549,7 +593,7 @@ export default function InspirationDetailScreen() {
                       pressed && { opacity: 0.7 },
                     ]}
                   >
-                    <MaterialIcons name="save-alt" size={18} color="#2C2C2C" />
+                    <MaterialIcons name="save-alt" size={18} color="#F5A623" />
                     <Text style={shareStyles.actionBtnSecondaryText}>
                       {isSharing ? "处理中..." : "保存图片"}
                     </Text>
@@ -578,7 +622,7 @@ export default function InspirationDetailScreen() {
                       pressed && { opacity: 0.7 },
                     ]}
                   >
-                    <MaterialIcons name="content-copy" size={18} color="#2C2C2C" />
+                    <MaterialIcons name="content-copy" size={18} color="#F5A623" />
                     <Text style={shareStyles.actionBtnSecondaryText}>复制文字</Text>
                   </Pressable>
                 </>
@@ -601,9 +645,9 @@ export default function InspirationDetailScreen() {
 const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingHorizontal: 28, paddingBottom: 40 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyText: { fontSize: 16, color: "#8A8A8A", marginBottom: 16 },
+  emptyText: { fontSize: 16, color: "#8E8E93", marginBottom: 16 },
   backLink: { paddingVertical: 8, paddingHorizontal: 16 },
-  backLinkText: { fontSize: 15, color: "#5A5A5A", textDecorationLine: "underline" },
+  backLinkText: { fontSize: 15, color: "#F5A623", textDecorationLine: "underline" },
   navbar: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingTop: 12, paddingBottom: 20,
@@ -612,31 +656,58 @@ const styles = StyleSheet.create({
   navActions: { flexDirection: "row", alignItems: "center" },
   wordsSection: { alignItems: "center", paddingVertical: 32 },
   wordsRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", justifyContent: "center" },
-  wordText: { fontSize: 22, fontWeight: "700", color: "#2C2C2C", letterSpacing: 2 },
-  wordDot: { fontSize: 18, color: "#BDBDBD", marginHorizontal: 12 },
-  divider: { height: 1, backgroundColor: "#F0F0F0", marginHorizontal: 20, marginBottom: 32 },
+  wordText: { fontSize: 22, fontWeight: "700", color: "#C48A1A", letterSpacing: 2 },
+  wordDot: { fontSize: 18, color: "#F5D9A8", marginHorizontal: 12 },
+  divider: { height: 1, backgroundColor: "#F0EDE8", marginHorizontal: 20, marginBottom: 32 },
   contentSection: { flex: 1, minHeight: 200 },
-  contentText: { fontSize: 17, lineHeight: 28, color: "#2C2C2C", letterSpacing: 0.5 },
+  contentText: { fontSize: 17, lineHeight: 28, color: "#2D2D2D", letterSpacing: 0.5 },
   editInput: {
-    fontSize: 17, lineHeight: 28, color: "#2C2C2C", letterSpacing: 0.5,
-    backgroundColor: "#FAFAFA", borderRadius: 12, padding: 20,
+    fontSize: 17, lineHeight: 28, color: "#2D2D2D", letterSpacing: 0.5,
+    backgroundColor: "#FFFCF7", borderRadius: 12, padding: 20,
     minHeight: 200, textAlignVertical: "top",
-    borderWidth: 1, borderColor: "#F0F0F0",
+    borderWidth: 1, borderColor: "#F0EDE8",
   },
   editActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 20, gap: 16 },
   cancelButton: {
     flex: 1, paddingVertical: 14, backgroundColor: "#FFFFFF", borderRadius: 28,
-    alignItems: "center", borderWidth: 1, borderColor: "#E0E0E0",
+    alignItems: "center", borderWidth: 1, borderColor: "#F0EDE8",
   },
-  cancelButtonText: { fontSize: 15, color: "#5A5A5A", letterSpacing: 1 },
+  cancelButtonText: { fontSize: 15, color: "#8E8E93", letterSpacing: 1 },
   saveEditButton: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#2C2C2C", borderRadius: 28, alignItems: "center",
+    flex: 1, paddingVertical: 14, backgroundColor: "#F5A623", borderRadius: 28, alignItems: "center",
   },
   saveEditButtonText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500", letterSpacing: 1 },
-  saveEditButtonDisabled: { backgroundColor: "#E0E0E0" },
-  saveEditButtonTextDisabled: { color: "#BDBDBD" },
-  metaSection: { marginTop: 40, paddingTop: 20, borderTopWidth: 1, borderTopColor: "#F0F0F0" },
-  metaText: { fontSize: 13, color: "#AFAFAF", letterSpacing: 1 },
+  saveEditButtonDisabled: { backgroundColor: "#F0EDE8" },
+  saveEditButtonTextDisabled: { color: "#B0B0B5" },
+
+  /* AI 分析占位区域 */
+  aiSection: {
+    marginTop: 32, backgroundColor: "#FFF8EE", borderRadius: 16, padding: 20,
+    borderWidth: 1, borderColor: "#F5D9A8",
+  },
+  aiHeader: {
+    flexDirection: "row", alignItems: "center", marginBottom: 12,
+  },
+  aiTitle: {
+    fontSize: 15, fontWeight: "600", color: "#C48A1A", marginLeft: 8, flex: 1,
+  },
+  aiBadge: {
+    backgroundColor: "#F5D9A8", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3,
+  },
+  aiBadgeText: { fontSize: 11, color: "#C48A1A", fontWeight: "500" },
+  aiDescription: {
+    fontSize: 14, lineHeight: 22, color: "#8E8E93", marginBottom: 16,
+  },
+  aiPreviewItems: {
+    flexDirection: "row", justifyContent: "space-around",
+  },
+  aiPreviewItem: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+  },
+  aiPreviewText: { fontSize: 13, color: "#C48A1A" },
+
+  metaSection: { marginTop: 32, paddingTop: 20, borderTopWidth: 1, borderTopColor: "#F0EDE8" },
+  metaText: { fontSize: 13, color: "#B0B0B5", letterSpacing: 1 },
 });
 
 const CARD_WIDTH = SCREEN_WIDTH - 64;
@@ -648,29 +719,33 @@ const shareStyles = StyleSheet.create({
   },
   modalContent: { width: CARD_WIDTH + 32, alignItems: "center" },
   card: {
-    width: CARD_WIDTH, backgroundColor: "#FFFFFF", borderRadius: 20,
+    width: CARD_WIDTH, backgroundColor: "#FFFCF7", borderRadius: 20,
     padding: 32, shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+  },
+  topAccent: {
+    height: 2, backgroundColor: "#F5A623", borderRadius: 1,
+    marginBottom: 24, marginHorizontal: -8,
   },
   wordsSection: {
     flexDirection: "row", justifyContent: "center", alignItems: "center",
     flexWrap: "wrap", marginBottom: 24,
   },
-  word1: { fontSize: 20, fontWeight: "700", color: "#2C2C2C", letterSpacing: 2 },
-  word2: { fontSize: 20, fontWeight: "700", color: "#2C2C2C", letterSpacing: 2 },
-  word3: { fontSize: 20, fontWeight: "700", color: "#2C2C2C", letterSpacing: 2 },
-  wordDot: { fontSize: 16, color: "#BDBDBD", marginHorizontal: 10 },
-  divider: { height: 1, backgroundColor: "#F0F0F0", marginBottom: 24 },
+  word1: { fontSize: 20, fontWeight: "700", color: "#C48A1A", letterSpacing: 2 },
+  word2: { fontSize: 20, fontWeight: "700", color: "#C48A1A", letterSpacing: 2 },
+  word3: { fontSize: 20, fontWeight: "700", color: "#C48A1A", letterSpacing: 2 },
+  wordDot: { fontSize: 16, color: "#F5D9A8", marginHorizontal: 10 },
+  divider: { height: 1, backgroundColor: "#F0EDE8", marginBottom: 24 },
   content: {
-    fontSize: 16, lineHeight: 26, color: "#2C2C2C", letterSpacing: 0.3,
+    fontSize: 16, lineHeight: 26, color: "#2D2D2D", letterSpacing: 0.3,
     marginBottom: 28, textAlign: "left",
   },
   footer: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    borderTopWidth: 1, borderTopColor: "#F0F0F0", paddingTop: 16,
+    borderTopWidth: 1, borderTopColor: "#F0EDE8", paddingTop: 16,
   },
-  date: { fontSize: 12, color: "#AFAFAF", letterSpacing: 1 },
-  brand: { fontSize: 14, color: "#BDBDBD", letterSpacing: 4, fontWeight: "300" },
+  date: { fontSize: 12, color: "#B0B0B5", letterSpacing: 1 },
+  brand: { fontSize: 14, color: "#F5A623", letterSpacing: 4, fontWeight: "300" },
   actions: {
     flexDirection: "row", marginTop: 20, gap: 12, width: CARD_WIDTH,
   },
@@ -678,10 +753,10 @@ const shareStyles = StyleSheet.create({
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     borderRadius: 28, paddingVertical: 14, gap: 8,
   },
-  actionBtnPrimary: { backgroundColor: "#2C2C2C" },
+  actionBtnPrimary: { backgroundColor: "#F5A623" },
   actionBtnPrimaryText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500", letterSpacing: 1 },
-  actionBtnSecondary: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E0E0E0" },
-  actionBtnSecondaryText: { fontSize: 15, color: "#2C2C2C", fontWeight: "500", letterSpacing: 1 },
+  actionBtnSecondary: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#F5D9A8" },
+  actionBtnSecondaryText: { fontSize: 15, color: "#F5A623", fontWeight: "500", letterSpacing: 1 },
   closeButton: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 32 },
   closeButtonText: { fontSize: 15, color: "#FFFFFF", letterSpacing: 1 },
 });

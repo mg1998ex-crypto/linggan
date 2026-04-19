@@ -45,8 +45,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="archive"
         options={{
-          title: "列表",
+          title: "灵感库",
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="about"
+        options={{
+          title: "关于",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="info.circle.fill" color={color} />,
         }}
       />
     </Tabs>

@@ -571,15 +571,15 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1 },
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
   header: { alignItems: "center", marginBottom: 60 },
-  title: { fontSize: 32, fontWeight: "300", color: "#2C2C2C", letterSpacing: 8 },
-  timer: { marginTop: 16, fontSize: 18, fontWeight: "400", color: "#5A5A5A", letterSpacing: 2 },
-  timerWarning: { color: "#D4A574" },
-  timerExpired: { color: "#C9A87C" },
-  timerOvertime: { color: "#C9A87C", fontWeight: "300" },
+  title: { fontSize: 32, fontWeight: "300", color: "#2D2D2D", letterSpacing: 8 },
+  timer: { marginTop: 16, fontSize: 18, fontWeight: "400", color: "#8E8E93", letterSpacing: 2 },
+  timerWarning: { color: "#F5A623" },
+  timerExpired: { color: "#E8940A" },
+  timerOvertime: { color: "#E8940A", fontWeight: "300" },
 
   timeUpContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 120 },
-  timeUpTitle: { fontSize: 22, fontWeight: "400", color: "#2C2C2C", letterSpacing: 4, marginBottom: 12 },
-  timeUpSubtitle: { fontSize: 15, fontWeight: "300", color: "#8A8A8A", letterSpacing: 2 },
+  timeUpTitle: { fontSize: 22, fontWeight: "400", color: "#2D2D2D", letterSpacing: 4, marginBottom: 12 },
+  timeUpSubtitle: { fontSize: 15, fontWeight: "300", color: "#8E8E93", letterSpacing: 2 },
 
   /* 状态1: 初始状态 */
   idleContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 120 },
@@ -587,25 +587,25 @@ const styles = StyleSheet.create({
   /* 分类筛选器 */
   categoryFilter: {
     flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8,
-    backgroundColor: "#FAFAFA", borderRadius: 20, marginBottom: 32,
-    borderWidth: 1, borderColor: "#F0F0F0",
+    backgroundColor: "#FFF8EE", borderRadius: 20, marginBottom: 32,
+    borderWidth: 1, borderColor: "#F0EDE8",
   },
-  categoryFilterText: { fontSize: 14, color: "#5A5A5A", letterSpacing: 1 },
-  categoryFilterArrow: { fontSize: 12, color: "#8A8A8A", marginLeft: 6 },
+  categoryFilterText: { fontSize: 14, color: "#6B6B6B", letterSpacing: 1 },
+  categoryFilterArrow: { fontSize: 12, color: "#8E8E93", marginLeft: 6 },
   filterPressed: { opacity: 0.7 },
 
   startButton: {
-    paddingHorizontal: 64, paddingVertical: 20, backgroundColor: "#2C2C2C",
-    borderRadius: 40, borderWidth: 1, borderColor: "#2C2C2C",
+    paddingHorizontal: 64, paddingVertical: 20, backgroundColor: "#F5A623",
+    borderRadius: 40, borderWidth: 1, borderColor: "#F5A623",
   },
   startButtonText: { fontSize: 18, fontWeight: "400", color: "#FFFFFF", letterSpacing: 6 },
 
   /* 指定词入口 */
   customWordLink: {
     flexDirection: "row", alignItems: "center", marginTop: 28, paddingVertical: 10, paddingHorizontal: 20,
-    backgroundColor: "#F5F5F5", borderRadius: 20, borderWidth: 1, borderColor: "#E8E8E8",
+    backgroundColor: "#FFF8EE", borderRadius: 20, borderWidth: 1, borderColor: "#F5D9A8",
   },
-  customWordLinkText: { fontSize: 14, color: "#5A5A5A", letterSpacing: 1, marginLeft: 6, fontWeight: "400" },
+  customWordLinkText: { fontSize: 14, color: "#C48A1A", letterSpacing: 1, marginLeft: 6, fontWeight: "500" },
 
   /* 状态2: 动画播放中 */
   rollersContainer: {
@@ -620,19 +620,19 @@ const styles = StyleSheet.create({
   },
   inputSection: { paddingHorizontal: 4, marginBottom: 40 },
   input: {
-    backgroundColor: "#FAFAFA", borderRadius: 12, padding: 20, fontSize: 16,
-    lineHeight: 24, minHeight: 160, textAlignVertical: "top", color: "#2C2C2C",
-    borderWidth: 1, borderColor: "#F0F0F0",
+    backgroundColor: "#FFFCF7", borderRadius: 12, padding: 20, fontSize: 16,
+    lineHeight: 24, minHeight: 160, textAlignVertical: "top", color: "#2D2D2D",
+    borderWidth: 1, borderColor: "#F0EDE8",
   },
   actionButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 20, gap: 16 },
   secondaryButton: {
     flex: 1, paddingVertical: 16, backgroundColor: "#FFFFFF", borderRadius: 30,
-    alignItems: "center", borderWidth: 1, borderColor: "#2C2C2C",
+    alignItems: "center", borderWidth: 1, borderColor: "#F5A623",
   },
-  secondaryButtonText: { fontSize: 15, fontWeight: "400", color: "#2C2C2C", letterSpacing: 2 },
+  secondaryButtonText: { fontSize: 15, fontWeight: "400", color: "#F5A623", letterSpacing: 2 },
   saveButton: {
-    flex: 1, paddingVertical: 16, backgroundColor: "#2C2C2C", borderRadius: 30,
-    alignItems: "center", borderWidth: 1, borderColor: "#2C2C2C",
+    flex: 1, paddingVertical: 16, backgroundColor: "#F5A623", borderRadius: 30,
+    alignItems: "center", borderWidth: 1, borderColor: "#F5A623",
   },
   saveButtonText: { fontSize: 15, fontWeight: "400", color: "#FFFFFF", letterSpacing: 2 },
   saveButtonDisabled: { backgroundColor: "#FFFFFF", borderColor: "#E0E0E0" },
@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
   buttonPressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
 
   toastContainer: { alignItems: "center", marginTop: 40 },
-  toastText: { fontSize: 16, color: "#5A5A5A", letterSpacing: 2 },
+  toastText: { fontSize: 16, color: "#F5A623", letterSpacing: 2 },
 
   /* 弹窗通用 */
   modalOverlay: {
@@ -656,14 +656,14 @@ const styles = StyleSheet.create({
   categoryPickerItem: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10, marginBottom: 6,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#FFFCF7",
   },
-  categoryPickerItemActive: { backgroundColor: "#2C2C2C" },
-  categoryPickerName: { fontSize: 15, color: "#2C2C2C" },
+  categoryPickerItemActive: { backgroundColor: "#F5A623" },
+  categoryPickerName: { fontSize: 15, color: "#2D2D2D" },
   categoryPickerNameActive: { color: "#FFFFFF", fontWeight: "500" },
   categoryPickerCount: { fontSize: 13, color: "#8A8A8A" },
   modalCloseButton: {
-    marginTop: 16, paddingVertical: 14, backgroundColor: "#F5F5F5",
+    marginTop: 16, paddingVertical: 14, backgroundColor: "#FFF8EE",
     borderRadius: 24, alignItems: "center",
   },
   modalCloseText: { fontSize: 15, color: "#5A5A5A" },
@@ -674,17 +674,17 @@ const styles = StyleSheet.create({
   },
   customWordHint: { fontSize: 13, color: "#8A8A8A", textAlign: "center", marginBottom: 20, lineHeight: 18 },
   customWordInput: {
-    backgroundColor: "#FAFAFA", borderRadius: 12, padding: 16, fontSize: 18,
-    textAlign: "center", color: "#2C2C2C", borderWidth: 1, borderColor: "#F0F0F0",
+    backgroundColor: "#FFFCF7", borderRadius: 12, padding: 16, fontSize: 18,
+    textAlign: "center", color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8",
     letterSpacing: 2,
   },
   customWordActions: { flexDirection: "row", marginTop: 20, gap: 12 },
   customWordCancel: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#F5F5F5", borderRadius: 24, alignItems: "center",
+    flex: 1, paddingVertical: 14, backgroundColor: "#FFF8EE", borderRadius: 24, alignItems: "center",
   },
   customWordCancelText: { fontSize: 15, color: "#5A5A5A" },
   customWordConfirm: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#2C2C2C", borderRadius: 24, alignItems: "center",
+    flex: 1, paddingVertical: 14, backgroundColor: "#F5A623", borderRadius: 24, alignItems: "center",
   },
   customWordConfirmDisabled: { backgroundColor: "#E0E0E0" },
   customWordConfirmText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500" },

@@ -198,7 +198,7 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
           <MaterialIcons
             name={isLocked ? "lock" : "lock-open"}
             size={16}
-            color={isLocked ? "#2C2C2C" : "#BDBDBD"}
+            color={isLocked ? "#F5A623" : "#C0C0C5"}
           />
         </Pressable>
       ) : null}
@@ -235,10 +235,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     textAlign: "center",
-    color: "#2C2C2C",
+    color: "#2D2D2D",
   },
   wordLocked: {
-    color: "#1A1A1A",
+    color: "#C48A1A",
   },
   lockButton: {
     marginTop: 4,

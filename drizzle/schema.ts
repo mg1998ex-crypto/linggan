@@ -37,6 +37,10 @@ export const inspirations = mysqlTable("inspirations", {
   word3: varchar("word3", { length: 50 }).notNull(),
   // 用户的灵感点子
   content: text("content").notNull(),
+  // AI分析结果(预留字段,未来接入AI时使用)
+  aiAnalysis: text("aiAnalysis"),
+  // AI分析时间(预留字段)
+  aiAnalyzedAt: timestamp("aiAnalyzedAt"),
   // 创建时间
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
