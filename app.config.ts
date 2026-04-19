@@ -32,7 +32,7 @@ const env = {
   appSlug: "linggan-app",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663283660259/bbXfC9tdeuFsJiQG4ZFdGH/linggan-icon-PyuJ32j2Hbv52XPEm6WT6i.png",
+  logoUrl: "https://private-us-east-1.manuscdn.com/sessionFile/a2L9QE5mvmqvsHJ9g8Rs9b/sandbox/IADRKAnTFwEXOlEGXp17xE-img-1_1771566544000_na1fn_aWNvbmcucG5n.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -56,7 +56,7 @@ const config: ExpoConfig = {
   },
   android: {
     adaptiveIcon: {
-      backgroundColor: "#FAFAF5",
+      backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
@@ -105,7 +105,7 @@ const config: ExpoConfig = {
         image: "./assets/images/splash-icon.png",
         imageWidth: 200,
         resizeMode: "contain",
-        backgroundColor: "#FAFAF5",
+        backgroundColor: "#ffffff",
         dark: {
           backgroundColor: "#000000",
         },
