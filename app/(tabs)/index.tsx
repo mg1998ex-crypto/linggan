@@ -97,30 +97,29 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // 启动计时器(倒计时模式)
+  // 计时器模式: 使用ref跟踪是否超时,避免嵌套setInterval
+  const isOvertimeRef = useRef(false);
+
+  // 统一的计时器tick函数
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
+    isOvertimeRef.current = false;
     timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          timerRef.current = null;
-          timerStarted.current = false;
-          setState("timeup");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
-
-  // 启动计时器(超时正计时模式 - 从5:01开始)
-  const startOvertimeCounter = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setIsOvertime(true);
-    setTimeLeft(TOTAL_TIME + 1); // 5:01
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => prev + 1);
+      if (isOvertimeRef.current) {
+        // 超时模式: 正计时
+        setTimeLeft((prev) => prev + 1);
+      } else {
+        // 倒计时模式
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            // 倒计时结束,切换为超时模式
+            isOvertimeRef.current = true;
+            setIsOvertime(true);
+            return TOTAL_TIME + 1; // 从5:01开始
+          }
+          return prev - 1;
+        });
+      }
     }, 1000);
   }, []);
 
@@ -129,6 +128,7 @@ export default function HomeScreen() {
     if (timerStarted.current) return;
     timerStarted.current = true;
     setIsOvertime(false);
+    isOvertimeRef.current = false;
     setTimeLeft(TOTAL_TIME);
     startCountdown();
   }, [startCountdown]);
@@ -140,20 +140,12 @@ export default function HomeScreen() {
     }
   }, [state, words, content]);
 
-  // 时间到后3秒回到初始状态
+  // timeup状态不再使用(计时器到期后自动进入超时模式)
+  // 保留此effect以防万一
   useEffect(() => {
     if (state === "timeup") {
-      clearDraft();
-      const timer = setTimeout(() => {
-        setState("idle");
-        setWords(["", "", ""]);
-        setContent("");
-        setTimeLeft(TOTAL_TIME);
-        timerStarted.current = false;
-        setIsOvertime(false);
-        setLockedIndices([false, false, false]);
-      }, 3000);
-      return () => clearTimeout(timer);
+      // 自动回到stopped状态继续使用
+      setState("stopped");
     }
   }, [state]);
 
@@ -280,12 +272,9 @@ export default function HomeScreen() {
       setRollerStopCount(0);
       setState("rolling");
 
-      // 如果计时器已到期,启动超时正计时
-      if (!timerStarted.current && !isOvertime) {
-        startOvertimeCounter();
-      }
+      // 计时器已自动切换为超时模式,无需手动处理
     }, 1500);
-  }, [canSave, words, content, availableWords, selectedCategoryId, categoryMap, createInspiration, isOvertime, startOvertimeCounter]);
+  }, [canSave, words, content, availableWords, selectedCategoryId, categoryMap, createInspiration, isOvertime]);
 
   // 单个roller停止回调
   const handleRollerStop = useCallback(() => {
@@ -369,7 +358,7 @@ export default function HomeScreen() {
                 onPress={() => setShowCustomWordInput(true)}
                 style={({ pressed }) => [styles.customWordLink, pressed && { opacity: 0.5 }]}
               >
-                <MaterialIcons name="edit" size={14} color="#AFAFAF" />
+                <MaterialIcons name="edit" size={16} color="#5A5A5A" />
                 <Text style={styles.customWordLinkText}>指定一个词</Text>
               </Pressable>
             </View>
@@ -613,9 +602,10 @@ const styles = StyleSheet.create({
 
   /* 指定词入口 */
   customWordLink: {
-    flexDirection: "row", alignItems: "center", marginTop: 24, paddingVertical: 8, paddingHorizontal: 12,
+    flexDirection: "row", alignItems: "center", marginTop: 28, paddingVertical: 10, paddingHorizontal: 20,
+    backgroundColor: "#F5F5F5", borderRadius: 20, borderWidth: 1, borderColor: "#E8E8E8",
   },
-  customWordLinkText: { fontSize: 13, color: "#AFAFAF", letterSpacing: 1, marginLeft: 4 },
+  customWordLinkText: { fontSize: 14, color: "#5A5A5A", letterSpacing: 1, marginLeft: 6, fontWeight: "400" },
 
   /* 状态2: 动画播放中 */
   rollersContainer: {

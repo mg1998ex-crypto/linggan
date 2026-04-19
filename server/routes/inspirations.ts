@@ -85,6 +85,7 @@ export const inspirationsRouter = router({
 
   /**
    * 获取灵感统计数据
+   * 使用JS端计算避免MySQL DATE()函数兼容性问题
    */
   stats: publicProcedure.query(async () => {
     const db = await getDb();
@@ -92,41 +93,55 @@ export const inspirationsRouter = router({
       return { total: 0, todayCount: 0, weekCount: 0, streakDays: 0 };
     }
 
-    // 总数
-    const totalResult = await db.select({ count: count() }).from(inspirations);
-    const total = totalResult[0]?.count || 0;
+    // 获取所有灵感的创建时间
+    const allInspirations = await db
+      .select({ createdAt: inspirations.createdAt })
+      .from(inspirations)
+      .orderBy(desc(inspirations.createdAt));
 
-    // 今日数量
-    const todayResult = await db.select({ count: count() }).from(inspirations)
-      .where(sql`DATE(${inspirations.createdAt}) = CURDATE()`);
-    const todayCount = todayResult[0]?.count || 0;
+    const total = allInspirations.length;
 
-    // 本周数量
-    const weekResult = await db.select({ count: count() }).from(inspirations)
-      .where(sql`${inspirations.createdAt} >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
-    const weekCount = weekResult[0]?.count || 0;
+    if (total === 0) {
+      return { total: 0, todayCount: 0, weekCount: 0, streakDays: 0 };
+    }
 
-    // 连续天数(从今天往前数连续有记录的天数)
-    const daysResult = await db.select({
-      day: sql<string>`DATE(${inspirations.createdAt})`,
-    }).from(inspirations)
-      .groupBy(sql`DATE(${inspirations.createdAt})`)
-      .orderBy(desc(sql`DATE(${inspirations.createdAt})`));
+    // 在JS端计算今日、本周、连续天数
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    let todayCount = 0;
+    let weekCount = 0;
+    const uniqueDays = new Set<string>();
+
+    for (const row of allInspirations) {
+      const d = new Date(row.createdAt);
+      const dayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      uniqueDays.add(dayStr);
+
+      if (dayStr === todayStr) {
+        todayCount++;
+      }
+
+      if (d >= sevenDaysAgo) {
+        weekCount++;
+      }
+    }
+
+    // 计算连续天数(从今天往前数连续有记录的天数)
+    const sortedDays = Array.from(uniqueDays).sort().reverse();
     let streakDays = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
 
-    for (let i = 0; i < daysResult.length; i++) {
-      const dayStr = daysResult[i].day;
-      const dayDate = new Date(dayStr);
-      dayDate.setHours(0, 0, 0, 0);
-
-      const expectedDate = new Date(today);
+    for (let i = 0; i < sortedDays.length; i++) {
+      const expectedDate = new Date(now);
       expectedDate.setDate(expectedDate.getDate() - i);
-      expectedDate.setHours(0, 0, 0, 0);
+      const expectedStr = `${expectedDate.getFullYear()}-${String(expectedDate.getMonth() + 1).padStart(2, "0")}-${String(expectedDate.getDate()).padStart(2, "0")}`;
 
-      if (dayDate.getTime() === expectedDate.getTime()) {
+      if (sortedDays[i] === expectedStr) {
         streakDays++;
       } else {
         break;

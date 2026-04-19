@@ -1,6 +1,10 @@
 /**
  * 灵感详情页面
  * 查看、编辑、删除、分享灵感记录
+ * 
+ * 分享功能:
+ * - Web端: Canvas绘制卡片 → 下载PNG图片 / 复制文字
+ * - 原生端: ViewShot截图 → 系统分享 / 保存到相册
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -30,6 +34,45 @@ if (Platform.OS !== "web") {
   } catch (e) { /* not available */ }
   try { Sharing = require("expo-sharing"); } catch (e) { /* not available */ }
   try { MediaLibrary = require("expo-media-library"); } catch (e) { /* not available */ }
+}
+
+// Canvas绘图辅助函数
+function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill: string) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  const paragraphs = text.split("\n");
+  for (const paragraph of paragraphs) {
+    if (paragraph.trim() === "") { lines.push(""); continue; }
+    let currentLine = "";
+    for (let i = 0; i < paragraph.length; i++) {
+      const char = paragraph[i];
+      const testLine = currentLine + char;
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxWidth && currentLine.length > 0) {
+        lines.push(currentLine);
+        currentLine = char;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+  }
+  return lines;
 }
 
 export default function InspirationDetailScreen() {
@@ -89,23 +132,15 @@ export default function InspirationDetailScreen() {
 
   const handleSaveEdit = async () => {
     if (!editContent.trim()) return;
-
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     Keyboard.dismiss();
-
     try {
-      await updateInspiration.mutateAsync({
-        id: inspirationId,
-        content: editContent.trim(),
-      });
+      await updateInspiration.mutateAsync({ id: inspirationId, content: editContent.trim() });
       setIsEditing(false);
       refetch();
-
-      if (Platform.OS !== "web") {
-        Alert.alert("", "修改已保存");
-      }
+      if (Platform.OS !== "web") Alert.alert("", "修改已保存");
     } catch (e) {
       console.error("更新失败:", e);
       const msg = "保存失败,请重试";
@@ -118,7 +153,6 @@ export default function InspirationDetailScreen() {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
-
     const confirmDelete = async () => {
       try {
         await deleteInspiration.mutateAsync({ id: inspirationId });
@@ -133,20 +167,13 @@ export default function InspirationDetailScreen() {
         else Alert.alert("错误", msg);
       }
     };
-
     if (Platform.OS === "web") {
-      if (confirm("确定删除这条灵感记录？删除后不可恢复。")) {
-        confirmDelete();
-      }
+      if (confirm("确定删除这条灵感记录？删除后不可恢复。")) confirmDelete();
     } else {
-      Alert.alert(
-        "删除灵感",
-        "确定删除这条灵感记录？删除后不可恢复。",
-        [
-          { text: "取消", style: "cancel" },
-          { text: "删除", style: "destructive", onPress: confirmDelete },
-        ]
-      );
+      Alert.alert("删除灵感", "确定删除这条灵感记录？删除后不可恢复。", [
+        { text: "取消", style: "cancel" },
+        { text: "删除", style: "destructive", onPress: confirmDelete },
+      ]);
     }
   };
 
@@ -157,47 +184,133 @@ export default function InspirationDetailScreen() {
     setShowShareCard(true);
   };
 
-  const handleShareCapture = async () => {
+  // ===== Web端：Canvas生成图片并下载 =====
+  const handleWebSaveImage = async () => {
+    if (isSharing || !inspiration) return;
+    setIsSharing(true);
+    try {
+      const canvas = document.createElement("canvas");
+      const scale = 2;
+      const cardWidth = 600;
+      const padding = 48;
+      const contentWidth = cardWidth - padding * 2;
+
+      const ctx = canvas.getContext("2d")!;
+      canvas.width = cardWidth * scale;
+      canvas.height = 1200 * scale;
+      ctx.scale(scale, scale);
+
+      // 计算内容文字行数
+      ctx.font = "16px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
+      const lines = wrapText(ctx, inspiration.content, contentWidth);
+      const contentHeight = lines.length * 26;
+
+      // 计算卡片高度
+      const wordsHeight = 40;
+      const dividerMargin = 24;
+      const footerHeight = 40;
+      const totalHeight = padding + wordsHeight + dividerMargin + 1 + dividerMargin + contentHeight + 32 + footerHeight + padding;
+
+      canvas.width = cardWidth * scale;
+      canvas.height = totalHeight * scale;
+      ctx.scale(scale, scale);
+
+      // 白色圆角背景
+      drawRoundRect(ctx, 0, 0, cardWidth, totalHeight, 20, "#FFFFFF");
+
+      // 三个词
+      let y = padding;
+      ctx.font = "bold 20px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
+      ctx.fillStyle = "#2C2C2C";
+      ctx.textAlign = "center";
+      ctx.fillText(`${inspiration.word1}  ·  ${inspiration.word2}  ·  ${inspiration.word3}`, cardWidth / 2, y + 28);
+      y += wordsHeight + dividerMargin;
+
+      // 分隔线
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(cardWidth - padding, y);
+      ctx.strokeStyle = "#F0F0F0";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      y += dividerMargin;
+
+      // 内容文字
+      ctx.font = "16px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
+      ctx.fillStyle = "#2C2C2C";
+      ctx.textAlign = "left";
+      for (const line of lines) {
+        ctx.fillText(line, padding, y + 18);
+        y += 26;
+      }
+      y += 32;
+
+      // 底部分隔线
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(cardWidth - padding, y);
+      ctx.strokeStyle = "#F0F0F0";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      y += 20;
+
+      // 日期和品牌
+      ctx.font = "12px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
+      ctx.fillStyle = "#AFAFAF";
+      ctx.textAlign = "left";
+      ctx.fillText(formatShareDate(inspiration.createdAt), padding, y + 10);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#BDBDBD";
+      ctx.font = "300 14px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
+      ctx.fillText("灵 感", cardWidth - padding, y + 10);
+
+      // 下载图片
+      const dataUrl = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = `灵感_${inspiration.word1}_${inspiration.word2}_${inspiration.word3}.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      alert("图片已保存到下载文件夹");
+      setShowShareCard(false);
+    } catch (e) {
+      console.error("保存图片失败:", e);
+      alert("保存图片失败,请重试");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  // ===== Web端：复制文字 =====
+  const handleWebCopyText = async () => {
+    if (!inspiration) return;
+    try {
+      const text = `${inspiration.word1} · ${inspiration.word2} · ${inspiration.word3}\n\n${inspiration.content}\n\n— 灵感 ${formatShareDate(inspiration.createdAt)}`;
+      await navigator.clipboard.writeText(text);
+      alert("灵感内容已复制到剪贴板");
+      setShowShareCard(false);
+    } catch (e) {
+      alert("复制失败,请重试");
+    }
+  };
+
+  // ===== 原生端：截图分享 =====
+  const handleNativeShare = async () => {
     if (isSharing) return;
     setIsSharing(true);
-
     try {
-      if (Platform.OS === "web") {
-        // Web端：复制文字到剪贴板
-        if (inspiration) {
-          const text = `${inspiration.word1} · ${inspiration.word2} · ${inspiration.word3}\n\n${inspiration.content}\n\n— 灵感 ${formatShareDate(inspiration.createdAt)}`;
-          await navigator.clipboard.writeText(text);
-          alert("灵感内容已复制到剪贴板");
-        }
-        setShowShareCard(false);
-        setIsSharing(false);
-        return;
-      }
-
-      // 原生端：截图分享
       if (!captureRef || !shareCardRef.current) {
         Alert.alert("提示", "分享功能暂不可用");
         setIsSharing(false);
         return;
       }
-
-      // 等待渲染完成
       await new Promise(resolve => setTimeout(resolve, 300));
-
-      const uri = await captureRef(shareCardRef.current, {
-        format: "png",
-        quality: 1,
-        result: "tmpfile",
-      });
-
-      // 尝试使用系统分享
+      const uri = await captureRef(shareCardRef.current, { format: "png", quality: 1, result: "tmpfile" });
       if (Sharing && await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: "image/png",
-          dialogTitle: "分享灵感",
-        });
+        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "分享灵感" });
       } else if (MediaLibrary) {
-        // 备选：保存到相册
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status === "granted") {
           await MediaLibrary.saveToLibraryAsync(uri);
@@ -210,40 +323,29 @@ export default function InspirationDetailScreen() {
       }
     } catch (e) {
       console.error("分享失败:", e);
-      if (Platform.OS === "web") {
-        alert("分享失败,请重试");
-      } else {
-        Alert.alert("提示", "分享失败,请重试");
-      }
+      Alert.alert("提示", "分享失败,请重试");
     } finally {
       setShowShareCard(false);
       setIsSharing(false);
     }
   };
 
-  const handleSaveToAlbum = async () => {
+  // ===== 原生端：保存到相册 =====
+  const handleNativeSaveToAlbum = async () => {
     if (isSharing) return;
     setIsSharing(true);
-
     try {
-      if (Platform.OS === "web" || !captureRef || !shareCardRef.current) {
+      if (!captureRef || !shareCardRef.current) {
         setIsSharing(false);
         return;
       }
-
       await new Promise(resolve => setTimeout(resolve, 300));
-
-      const uri = await captureRef(shareCardRef.current, {
-        format: "png",
-        quality: 1,
-        result: "tmpfile",
-      });
-
+      const uri = await captureRef(shareCardRef.current, { format: "png", quality: 1, result: "tmpfile" });
       if (MediaLibrary) {
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status === "granted") {
           await MediaLibrary.saveToLibraryAsync(uri);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert("", "图片已保存到相册");
         } else {
           Alert.alert("提示", "需要相册权限才能保存图片");
@@ -281,10 +383,9 @@ export default function InspirationDetailScreen() {
     );
   }
 
-  // 分享卡片内容（用于截图）
+  // 分享卡片内容（用于截图和预览）
   const ShareCardContent = () => (
     <View style={shareStyles.card}>
-      {/* 顶部三个词 */}
       <View style={shareStyles.wordsSection}>
         <Text style={shareStyles.word1}>{inspiration.word1}</Text>
         <Text style={shareStyles.wordDot}>·</Text>
@@ -292,17 +393,11 @@ export default function InspirationDetailScreen() {
         <Text style={shareStyles.wordDot}>·</Text>
         <Text style={shareStyles.word3}>{inspiration.word3}</Text>
       </View>
-
-      {/* 分隔线 */}
       <View style={shareStyles.divider} />
-
-      {/* 灵感正文 */}
       <Text style={shareStyles.content}>{inspiration.content}</Text>
-
-      {/* 底部 */}
       <View style={shareStyles.footer}>
         <Text style={shareStyles.date}>{formatShareDate(inspiration.createdAt)}</Text>
-        <Text style={shareStyles.brand}>灵感</Text>
+        <Text style={shareStyles.brand}>灵 感</Text>
       </View>
     </View>
   );
@@ -319,7 +414,6 @@ export default function InspirationDetailScreen() {
           >
             <MaterialIcons name="arrow-back" size={24} color="#2C2C2C" />
           </Pressable>
-
           <View style={styles.navActions}>
             {!isEditing ? (
               <>
@@ -360,7 +454,6 @@ export default function InspirationDetailScreen() {
           </View>
         </View>
 
-        {/* 分隔线 */}
         <View style={styles.divider} />
 
         {/* 灵感内容 */}
@@ -395,9 +488,7 @@ export default function InspirationDetailScreen() {
                   <Text style={[
                     styles.saveEditButtonText,
                     !editContent.trim() && styles.saveEditButtonTextDisabled,
-                  ]}>
-                    保存修改
-                  </Text>
+                  ]}>保存修改</Text>
                 </Pressable>
               </View>
             </>
@@ -406,7 +497,6 @@ export default function InspirationDetailScreen() {
           )}
         </View>
 
-        {/* 时间信息 */}
         {!isEditing && (
           <View style={styles.metaSection}>
             <Text style={styles.metaText}>{formatDate(inspiration.createdAt)}</Text>
@@ -423,7 +513,7 @@ export default function InspirationDetailScreen() {
       >
         <View style={shareStyles.overlay}>
           <View style={shareStyles.modalContent}>
-            {/* 可截图的卡片区域 */}
+            {/* 卡片预览 */}
             {Platform.OS !== "web" && ViewShot ? (
               <ViewShot ref={shareCardRef} options={{ format: "png", quality: 1 }}>
                 <ShareCardContent />
@@ -437,50 +527,64 @@ export default function InspirationDetailScreen() {
               {Platform.OS !== "web" ? (
                 <>
                   <Pressable
-                    onPress={handleShareCapture}
+                    onPress={handleNativeShare}
                     disabled={isSharing}
                     style={({ pressed }) => [
-                      shareStyles.shareButton,
+                      shareStyles.actionBtn, shareStyles.actionBtnPrimary,
                       isSharing && { opacity: 0.5 },
                       pressed && { opacity: 0.7 },
                     ]}
                   >
                     <MaterialIcons name="share" size={18} color="#FFFFFF" />
-                    <Text style={shareStyles.shareButtonText}>
+                    <Text style={shareStyles.actionBtnPrimaryText}>
                       {isSharing ? "处理中..." : "分享"}
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={handleSaveToAlbum}
+                    onPress={handleNativeSaveToAlbum}
                     disabled={isSharing}
                     style={({ pressed }) => [
-                      shareStyles.saveButton,
+                      shareStyles.actionBtn, shareStyles.actionBtnSecondary,
                       isSharing && { opacity: 0.5 },
                       pressed && { opacity: 0.7 },
                     ]}
                   >
                     <MaterialIcons name="save-alt" size={18} color="#2C2C2C" />
-                    <Text style={shareStyles.saveButtonText}>
+                    <Text style={shareStyles.actionBtnSecondaryText}>
                       {isSharing ? "处理中..." : "保存图片"}
                     </Text>
                   </Pressable>
                 </>
               ) : (
-                <Pressable
-                  onPress={handleShareCapture}
-                  disabled={isSharing}
-                  style={({ pressed }) => [
-                    shareStyles.shareButton, { flex: 1 },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <MaterialIcons name="content-copy" size={18} color="#FFFFFF" />
-                  <Text style={shareStyles.shareButtonText}>复制文字</Text>
-                </Pressable>
+                <>
+                  <Pressable
+                    onPress={handleWebSaveImage}
+                    disabled={isSharing}
+                    style={({ pressed }) => [
+                      shareStyles.actionBtn, shareStyles.actionBtnPrimary,
+                      isSharing && { opacity: 0.5 },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <MaterialIcons name="save-alt" size={18} color="#FFFFFF" />
+                    <Text style={shareStyles.actionBtnPrimaryText}>
+                      {isSharing ? "生成中..." : "保存图片"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleWebCopyText}
+                    style={({ pressed }) => [
+                      shareStyles.actionBtn, shareStyles.actionBtnSecondary,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <MaterialIcons name="content-copy" size={18} color="#2C2C2C" />
+                    <Text style={shareStyles.actionBtnSecondaryText}>复制文字</Text>
+                  </Pressable>
+                </>
               )}
             </View>
 
-            {/* 关闭按钮 */}
             <Pressable
               onPress={() => !isSharing && setShowShareCard(false)}
               style={({ pressed }) => [shareStyles.closeButton, pressed && { opacity: 0.5 }]}
@@ -500,29 +604,19 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 16, color: "#8A8A8A", marginBottom: 16 },
   backLink: { paddingVertical: 8, paddingHorizontal: 16 },
   backLinkText: { fontSize: 15, color: "#5A5A5A", textDecorationLine: "underline" },
-
-  /* 导航栏 */
   navbar: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingTop: 12, paddingBottom: 20,
   },
   navButton: { padding: 4 },
   navActions: { flexDirection: "row", alignItems: "center" },
-
-  /* 三个原词 */
   wordsSection: { alignItems: "center", paddingVertical: 32 },
   wordsRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", justifyContent: "center" },
   wordText: { fontSize: 22, fontWeight: "700", color: "#2C2C2C", letterSpacing: 2 },
   wordDot: { fontSize: 18, color: "#BDBDBD", marginHorizontal: 12 },
-
-  /* 分隔线 */
   divider: { height: 1, backgroundColor: "#F0F0F0", marginHorizontal: 20, marginBottom: 32 },
-
-  /* 灵感内容 */
   contentSection: { flex: 1, minHeight: 200 },
   contentText: { fontSize: 17, lineHeight: 28, color: "#2C2C2C", letterSpacing: 0.5 },
-
-  /* 编辑模式 */
   editInput: {
     fontSize: 17, lineHeight: 28, color: "#2C2C2C", letterSpacing: 0.5,
     backgroundColor: "#FAFAFA", borderRadius: 12, padding: 20,
@@ -536,19 +630,15 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: { fontSize: 15, color: "#5A5A5A", letterSpacing: 1 },
   saveEditButton: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#2C2C2C", borderRadius: 28,
-    alignItems: "center",
+    flex: 1, paddingVertical: 14, backgroundColor: "#2C2C2C", borderRadius: 28, alignItems: "center",
   },
   saveEditButtonText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500", letterSpacing: 1 },
   saveEditButtonDisabled: { backgroundColor: "#E0E0E0" },
   saveEditButtonTextDisabled: { color: "#BDBDBD" },
-
-  /* 时间信息 */
   metaSection: { marginTop: 40, paddingTop: 20, borderTopWidth: 1, borderTopColor: "#F0F0F0" },
   metaText: { fontSize: 13, color: "#AFAFAF", letterSpacing: 1 },
 });
 
-/* 分享卡片样式 */
 const CARD_WIDTH = SCREEN_WIDTH - 64;
 
 const shareStyles = StyleSheet.create({
@@ -557,8 +647,6 @@ const shareStyles = StyleSheet.create({
     justifyContent: "center", alignItems: "center", padding: 32,
   },
   modalContent: { width: CARD_WIDTH + 32, alignItems: "center" },
-
-  /* 卡片 */
   card: {
     width: CARD_WIDTH, backgroundColor: "#FFFFFF", borderRadius: 20,
     padding: 32, shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
@@ -583,22 +671,17 @@ const shareStyles = StyleSheet.create({
   },
   date: { fontSize: 12, color: "#AFAFAF", letterSpacing: 1 },
   brand: { fontSize: 14, color: "#BDBDBD", letterSpacing: 4, fontWeight: "300" },
-
-  /* 操作按钮 */
   actions: {
     flexDirection: "row", marginTop: 20, gap: 12, width: CARD_WIDTH,
   },
-  shareButton: {
+  actionBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: "#2C2C2C", borderRadius: 28, paddingVertical: 14, gap: 8,
+    borderRadius: 28, paddingVertical: 14, gap: 8,
   },
-  shareButtonText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500", letterSpacing: 1 },
-  saveButton: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: "#FFFFFF", borderRadius: 28, paddingVertical: 14, gap: 8,
-    borderWidth: 1, borderColor: "#E0E0E0",
-  },
-  saveButtonText: { fontSize: 15, color: "#2C2C2C", fontWeight: "500", letterSpacing: 1 },
+  actionBtnPrimary: { backgroundColor: "#2C2C2C" },
+  actionBtnPrimaryText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500", letterSpacing: 1 },
+  actionBtnSecondary: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E0E0E0" },
+  actionBtnSecondaryText: { fontSize: 15, color: "#2C2C2C", fontWeight: "500", letterSpacing: 1 },
   closeButton: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 32 },
   closeButtonText: { fontSize: 15, color: "#FFFFFF", letterSpacing: 1 },
 });
