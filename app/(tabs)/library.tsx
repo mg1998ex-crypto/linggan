@@ -12,10 +12,12 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useWordLibrary } from "@/lib/word-library-context";
+import { useThemeColors } from "@/hooks/use-theme-colors";
 
 export default function LibraryScreen() {
   const router = useRouter();
   const lib = useWordLibrary();
+  const c = useThemeColors();
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -25,9 +27,9 @@ export default function LibraryScreen() {
 
   if (lib.loading || !lib.data) {
     return (
-      <ScreenContainer className="bg-background">
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>加载词库中...</Text>
+      <ScreenContainer>
+        <View style={[styles.loadingContainer, { backgroundColor: c.background }]}>
+          <Text style={[styles.loadingText, { color: c.muted }]}>加载词库中...</Text>
         </View>
       </ScreenContainer>
     );
@@ -54,7 +56,7 @@ export default function LibraryScreen() {
   const handleCreateCategory = () => {
     const name = newCategoryName.trim();
     if (!name) return;
-    if (categories.some((c) => c.name === name)) {
+    if (categories.some((ct) => ct.name === name)) {
       if (Platform.OS === "web") alert("分类名称已存在");
       else Alert.alert("提示", "分类名称已存在");
       return;
@@ -98,61 +100,62 @@ export default function LibraryScreen() {
       onLongPress={() => handleCategoryLongPress(item.id)}
       style={({ pressed }) => [
         styles.categoryCard,
-        item.isHidden && styles.categoryCardHidden,
-        pressed && styles.cardPressed,
+        { backgroundColor: c.cardBg, borderColor: c.border },
+        item.isHidden && { opacity: 0.5 },
+        pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] },
       ]}
     >
-      <Text style={[styles.categoryName, item.isHidden && styles.categoryNameHidden]} numberOfLines={1}>
+      <Text style={[styles.categoryName, { color: c.foreground }, item.isHidden && { color: c.muted }]} numberOfLines={1}>
         {item.name}
       </Text>
-      <Text style={[styles.categoryCount, item.isHidden && styles.categoryCountHidden]}>
+      <Text style={[styles.categoryCount, { color: c.accentDark }]}>
         {item.words.length} 词
       </Text>
-      {item.isHidden && <Text style={styles.hiddenBadge}>已隐藏</Text>}
+      {item.isHidden && <Text style={[styles.hiddenBadge, { color: c.muted }]}>已隐藏</Text>}
     </Pressable>
   );
 
   return (
-    <ScreenContainer className="bg-background">
-      <View style={styles.container}>
+    <ScreenContainer>
+      <View style={[styles.container, { backgroundColor: c.background }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>词 库</Text>
-          <Text style={styles.subtitle}>{stats.totalCategories} 个分类 · {stats.totalWords} 个词语</Text>
+          <Text style={[styles.title, { color: c.foreground }]}>词 库</Text>
+          <Text style={[styles.subtitle, { color: c.muted }]}>{stats.totalCategories} 个分类 · {stats.totalWords} 个词语</Text>
         </View>
 
         <View style={styles.searchContainer}>
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.foreground }]}
             placeholder="搜索词语..."
-            placeholderTextColor="#B0B0B5"
+            placeholderTextColor={c.muted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
           />
           {searchQuery.trim() !== "" && (
             <Pressable onPress={() => setSearchQuery("")} style={styles.clearButton}>
-              <Text style={styles.clearButtonText}>清除</Text>
+              <Text style={[styles.clearButtonText, { color: c.muted }]}>清除</Text>
             </Pressable>
           )}
         </View>
 
         {searchQuery.trim() !== "" ? (
           <View style={styles.searchResultsContainer}>
-            <Text style={styles.searchResultsTitle}>找到 {searchResults.length} 个结果</Text>
+            <Text style={[styles.searchResultsTitle, { color: c.muted }]}>找到 {searchResults.length} 个结果</Text>
             <FlatList
               data={searchResults.slice(0, 50)}
               keyExtractor={(item, index) => `${item.categoryId}-${item.word.text}-${index}`}
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => handleCategoryPress(item.categoryId)}
-                  style={({ pressed }) => [styles.searchResultItem, pressed && styles.cardPressed]}
+                  style={({ pressed }) => [styles.searchResultItem, { backgroundColor: c.inputBg, borderColor: c.border }, pressed && { opacity: 0.7 }]}
                 >
-                  <Text style={styles.searchResultWord}>{item.word.text}</Text>
-                  <Text style={styles.searchResultCategory}>{item.categoryName}</Text>
+                  <Text style={[styles.searchResultWord, { color: c.foreground }]}>{item.word.text}</Text>
+                  <Text style={[styles.searchResultCategory, { color: c.muted }]}>{item.categoryName}</Text>
                 </Pressable>
               )}
               showsVerticalScrollIndicator={false}
-              ListEmptyComponent={<Text style={styles.emptyText}>没有找到匹配的词语</Text>}
+              ListEmptyComponent={<Text style={[styles.emptyText, { color: c.muted }]}>没有找到匹配的词语</Text>}
             />
           </View>
         ) : (
@@ -167,9 +170,9 @@ export default function LibraryScreen() {
             ListFooterComponent={
               <Pressable
                 onPress={() => setShowCreateModal(true)}
-                style={({ pressed }) => [styles.addCategoryCard, pressed && styles.cardPressed]}
+                style={({ pressed }) => [styles.addCategoryCard, { backgroundColor: c.accentLight, borderColor: c.isDark ? c.border : "#F5D9A8" }, pressed && { opacity: 0.7 }]}
               >
-                <Text style={styles.addCategoryText}>+ 新建分类</Text>
+                <Text style={[styles.addCategoryText, { color: c.primary }]}>+ 新建分类</Text>
               </Pressable>
             }
           />
@@ -178,13 +181,13 @@ export default function LibraryScreen() {
 
       {/* 创建分类弹窗 */}
       <Modal visible={showCreateModal} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowCreateModal(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>新建分类</Text>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: c.overlayBg }]} onPress={() => setShowCreateModal(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: c.surface }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.modalTitle, { color: c.foreground }]}>新建分类</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.foreground }]}
               placeholder="输入分类名称"
-              placeholderTextColor="#B0B0B5"
+              placeholderTextColor={c.muted}
               value={newCategoryName}
               onChangeText={setNewCategoryName}
               autoFocus
@@ -194,20 +197,20 @@ export default function LibraryScreen() {
             <View style={styles.modalButtons}>
               <Pressable
                 onPress={() => setShowCreateModal(false)}
-                style={({ pressed }) => [styles.modalButton, styles.modalCancelButton, pressed && styles.cardPressed]}
+                style={({ pressed }) => [styles.modalButton, { backgroundColor: c.accentLight }, pressed && { opacity: 0.7 }]}
               >
-                <Text style={styles.modalCancelText}>取消</Text>
+                <Text style={[styles.modalCancelText, { color: c.muted }]}>取消</Text>
               </Pressable>
               <Pressable
                 onPress={handleCreateCategory}
                 disabled={!newCategoryName.trim()}
                 style={({ pressed }) => [
-                  styles.modalButton, styles.modalConfirmButton,
-                  !newCategoryName.trim() && styles.modalButtonDisabled,
-                  pressed && styles.cardPressed,
+                  styles.modalButton, { backgroundColor: c.primary },
+                  !newCategoryName.trim() && { backgroundColor: c.border },
+                  pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text style={[styles.modalConfirmText, !newCategoryName.trim() && styles.modalConfirmTextDisabled]}>创建</Text>
+                <Text style={[styles.modalConfirmText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }, !newCategoryName.trim() && { color: c.muted }]}>创建</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -216,26 +219,26 @@ export default function LibraryScreen() {
 
       {/* 管理分类弹窗 */}
       <Modal visible={showManageModal} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowManageModal(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>管理分类</Text>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: c.overlayBg }]} onPress={() => setShowManageModal(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: c.surface }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.modalTitle, { color: c.foreground }]}>管理分类</Text>
             {manageCat && (
               <ScrollView style={styles.manageOptions}>
                 <Pressable
                   onPress={handleToggleHidden}
-                  style={({ pressed }) => [styles.manageOption, pressed && styles.cardPressed]}
+                  style={({ pressed }) => [styles.manageOption, pressed && { opacity: 0.7 }]}
                 >
-                  <Text style={styles.manageOptionText}>
+                  <Text style={[styles.manageOptionText, { color: c.foreground }]}>
                     {manageCat.isHidden ? "取消隐藏（恢复参与抽词）" : "隐藏分类（不参与抽词）"}
                   </Text>
                 </Pressable>
                 {!manageCat.isSystem && (
                   <>
-                    <View style={styles.manageDivider} />
+                    <View style={[styles.manageDivider, { backgroundColor: c.border }]} />
                     <View style={styles.renameSection}>
-                      <Text style={styles.manageSectionTitle}>重命名</Text>
+                      <Text style={[styles.manageSectionTitle, { color: c.muted }]}>重命名</Text>
                       <TextInput
-                        style={styles.modalInput}
+                        style={[styles.modalInput, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.foreground }]}
                         value={renameText}
                         onChangeText={setRenameText}
                         returnKeyType="done"
@@ -243,17 +246,17 @@ export default function LibraryScreen() {
                       />
                       <Pressable
                         onPress={handleRename}
-                        style={({ pressed }) => [styles.renameButton, pressed && styles.cardPressed]}
+                        style={({ pressed }) => [styles.renameButton, { backgroundColor: c.primary }, pressed && { opacity: 0.7 }]}
                       >
-                        <Text style={styles.renameButtonText}>确认重命名</Text>
+                        <Text style={[styles.renameButtonText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>确认重命名</Text>
                       </Pressable>
                     </View>
-                    <View style={styles.manageDivider} />
+                    <View style={[styles.manageDivider, { backgroundColor: c.border }]} />
                     <Pressable
                       onPress={handleDeleteCategory}
-                      style={({ pressed }) => [styles.manageOption, pressed && styles.cardPressed]}
+                      style={({ pressed }) => [styles.manageOption, pressed && { opacity: 0.7 }]}
                     >
-                      <Text style={[styles.manageOptionText, styles.deleteText]}>删除分类</Text>
+                      <Text style={[styles.manageOptionText, { color: c.error }]}>删除分类</Text>
                     </Pressable>
                   </>
                 )}
@@ -261,9 +264,9 @@ export default function LibraryScreen() {
             )}
             <Pressable
               onPress={() => setShowManageModal(false)}
-              style={({ pressed }) => [styles.modalButton, styles.modalCancelButton, { marginTop: 16 }, pressed && styles.cardPressed]}
+              style={({ pressed }) => [styles.modalButton, { backgroundColor: c.accentLight, marginTop: 16 }, pressed && { opacity: 0.7 }]}
             >
-              <Text style={styles.modalCancelText}>关闭</Text>
+              <Text style={[styles.modalCancelText, { color: c.muted }]}>关闭</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -275,74 +278,59 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { fontSize: 16, color: "#8E8E93" },
+  loadingText: { fontSize: 16 },
   header: { alignItems: "center", marginBottom: 24 },
-  title: { fontSize: 32, fontWeight: "300", color: "#2D2D2D", letterSpacing: 8 },
-  subtitle: { marginTop: 8, fontSize: 14, color: "#8E8E93", letterSpacing: 1 },
+  title: { fontSize: 32, fontWeight: "300", letterSpacing: 8 },
+  subtitle: { marginTop: 8, fontSize: 14, letterSpacing: 1 },
   searchContainer: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
   searchInput: {
-    flex: 1, backgroundColor: "#FFFCF7", borderRadius: 10, paddingHorizontal: 16,
-    paddingVertical: 12, fontSize: 15, color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8",
+    flex: 1, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
+    fontSize: 15, borderWidth: 1,
   },
   clearButton: { marginLeft: 12, paddingVertical: 8, paddingHorizontal: 12 },
-  clearButtonText: { fontSize: 14, color: "#8E8E93" },
+  clearButtonText: { fontSize: 14 },
   searchResultsContainer: { flex: 1 },
-  searchResultsTitle: { fontSize: 14, color: "#8E8E93", marginBottom: 12 },
+  searchResultsTitle: { fontSize: 14, marginBottom: 12 },
   searchResultItem: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 14, paddingHorizontal: 16, backgroundColor: "#FFFCF7",
-    borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: "#F0EDE8",
+    paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10, marginBottom: 8, borderWidth: 1,
   },
-  searchResultWord: { fontSize: 16, fontWeight: "500", color: "#2D2D2D" },
-  searchResultCategory: { fontSize: 13, color: "#8E8E93" },
-  emptyText: { textAlign: "center", fontSize: 15, color: "#B0B0B5", marginTop: 40 },
+  searchResultWord: { fontSize: 16, fontWeight: "500" },
+  searchResultCategory: { fontSize: 13 },
+  emptyText: { textAlign: "center", fontSize: 15, marginTop: 40 },
   categoryList: { paddingBottom: 40 },
   categoryRow: { justifyContent: "space-between", marginBottom: 12 },
   categoryCard: {
-    width: "48%", backgroundColor: "#FFFFFF", borderRadius: 12,
-    padding: 16, minHeight: 90, justifyContent: "space-between",
-    borderWidth: 1, borderColor: "#F0EDE8",
+    width: "48%", borderRadius: 12, padding: 16, minHeight: 90,
+    justifyContent: "space-between", borderWidth: 1,
   },
-  categoryCardHidden: { backgroundColor: "#FAFAF5", opacity: 0.6 },
-  categoryName: { fontSize: 16, fontWeight: "500", color: "#2D2D2D", marginBottom: 8 },
-  categoryNameHidden: { color: "#8E8E93" },
-  categoryCount: { fontSize: 13, color: "#C48A1A" },
-  categoryCountHidden: { color: "#B0B0B5" },
-  hiddenBadge: { fontSize: 11, color: "#B0B0B5", marginTop: 4 },
-  cardPressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  categoryName: { fontSize: 16, fontWeight: "500", marginBottom: 8 },
+  categoryCount: { fontSize: 13 },
+  hiddenBadge: { fontSize: 11, marginTop: 4 },
   addCategoryCard: {
-    width: "48%", backgroundColor: "#FFF8EE", borderRadius: 12, padding: 16,
-    minHeight: 90, justifyContent: "center", alignItems: "center",
-    borderWidth: 1, borderColor: "#F5D9A8", borderStyle: "dashed",
+    width: "48%", borderRadius: 12, padding: 16, minHeight: 90,
+    justifyContent: "center", alignItems: "center", borderWidth: 1, borderStyle: "dashed",
   },
-  addCategoryText: { fontSize: 15, color: "#F5A623" },
+  addCategoryText: { fontSize: 15 },
   modalOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center",
-    alignItems: "center", paddingHorizontal: 32,
+    flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32,
   },
-  modalContent: {
-    backgroundColor: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 360,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "500", color: "#2D2D2D", marginBottom: 16, textAlign: "center" },
+  modalContent: { borderRadius: 16, padding: 24, width: "100%", maxWidth: 360 },
+  modalTitle: { fontSize: 18, fontWeight: "500", marginBottom: 16, textAlign: "center" },
   modalInput: {
-    backgroundColor: "#FFFCF7", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
-    fontSize: 15, color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8", marginBottom: 16,
+    borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
+    fontSize: 15, borderWidth: 1, marginBottom: 16,
   },
   modalButtons: { flexDirection: "row", gap: 12 },
   modalButton: { flex: 1, paddingVertical: 14, borderRadius: 24, alignItems: "center" },
-  modalCancelButton: { backgroundColor: "#FFF8EE" },
-  modalCancelText: { fontSize: 15, color: "#8E8E93" },
-  modalConfirmButton: { backgroundColor: "#F5A623" },
-  modalConfirmText: { fontSize: 15, color: "#FFFFFF" },
-  modalButtonDisabled: { backgroundColor: "#F0EDE8" },
-  modalConfirmTextDisabled: { color: "#B0B0B5" },
+  modalCancelText: { fontSize: 15 },
+  modalConfirmText: { fontSize: 15 },
   manageOptions: { maxHeight: 300 },
   manageOption: { paddingVertical: 14, paddingHorizontal: 4 },
-  manageOptionText: { fontSize: 15, color: "#2D2D2D" },
-  manageDivider: { height: 1, backgroundColor: "#F0EDE8", marginVertical: 4 },
-  manageSectionTitle: { fontSize: 13, color: "#8E8E93", marginBottom: 8 },
+  manageOptionText: { fontSize: 15 },
+  manageDivider: { height: 1, marginVertical: 4 },
+  manageSectionTitle: { fontSize: 13, marginBottom: 8 },
   renameSection: { paddingVertical: 8 },
-  renameButton: { backgroundColor: "#F5A623", borderRadius: 20, paddingVertical: 10, alignItems: "center" },
-  renameButtonText: { fontSize: 14, color: "#FFFFFF" },
-  deleteText: { color: "#E74C3C" },
+  renameButton: { borderRadius: 20, paddingVertical: 10, alignItems: "center" },
+  renameButtonText: { fontSize: 14 },
 });

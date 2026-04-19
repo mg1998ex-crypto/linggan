@@ -72,6 +72,7 @@ export const inspirationsRouter = router({
       z.object({
         id: z.number(),
         content: z.string().min(1),
+        aiAnalysis: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -79,7 +80,12 @@ export const inspirationsRouter = router({
       if (!db) {
         throw new Error("Database not available");
       }
-      await db.update(inspirations).set({ content: input.content }).where(eq(inspirations.id, input.id));
+      const updateData: Record<string, any> = { content: input.content };
+      if (input.aiAnalysis !== undefined) {
+        updateData.aiAnalysis = input.aiAnalysis;
+        updateData.aiAnalyzedAt = new Date();
+      }
+      await db.update(inspirations).set(updateData).where(eq(inspirations.id, input.id));
       return { success: true };
     }),
 

@@ -3,6 +3,7 @@ import { Appearance, View, useColorScheme as useSystemColorScheme } from "react-
 import { colorScheme as nativewindColorScheme, vars } from "nativewind";
 
 import { SchemeColors, type ColorScheme } from "@/constants/theme";
+import { useThemeManager } from "@/lib/theme-context";
 
 type ThemeContextValue = {
   colorScheme: ColorScheme;
@@ -12,8 +13,8 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme = useSystemColorScheme() ?? "light";
-  const [colorScheme, setColorSchemeState] = useState<ColorScheme>(systemScheme);
+  const { resolvedScheme } = useThemeManager();
+  const [colorScheme, setColorSchemeState] = useState<ColorScheme>(resolvedScheme);
 
   const applyScheme = useCallback((scheme: ColorScheme) => {
     nativewindColorScheme.set(scheme);
@@ -34,9 +35,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyScheme(scheme);
   }, [applyScheme]);
 
+  // 当 ThemeManager 的 resolvedScheme 变化时同步
   useEffect(() => {
-    applyScheme(colorScheme);
-  }, [applyScheme, colorScheme]);
+    setColorSchemeState(resolvedScheme);
+    applyScheme(resolvedScheme);
+  }, [resolvedScheme, applyScheme]);
 
   const themeVariables = useMemo(
     () =>
@@ -61,7 +64,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }),
     [colorScheme, setColorScheme],
   );
-  console.log(value, themeVariables)
 
   return (
     <ThemeContext.Provider value={value}>

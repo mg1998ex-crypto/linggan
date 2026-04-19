@@ -66,9 +66,15 @@ interface WordRollerProps {
   onToggleLock?: () => void;
   /** 是否显示锁图标(仅在stopped状态显示) */
   showLock?: boolean;
+  /** 主题颜色 */
+  colors?: { foreground: string; primary: string; muted: string; accentDark: string };
 }
 
-export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, onToggleLock, showLock }: WordRollerProps) {
+export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, onToggleLock, showLock, colors }: WordRollerProps) {
+  const textColor = colors?.foreground ?? "#2D2D2D";
+  const lockedColor = colors?.accentDark ?? "#C48A1A";
+  const primaryColor = colors?.primary ?? "#F5A623";
+  const mutedColor = colors?.muted ?? "#C0C0C5";
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(1);
   const [rollingWords, setRollingWords] = useState<string[]>([]);
@@ -157,7 +163,7 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
             {rollingWords.map((w, index) => (
               <View key={index} style={styles.wordItem}>
                 <Text
-                  style={[styles.word, { fontSize: calcFontSize(w) }]}
+                  style={[styles.word, { fontSize: calcFontSize(w), color: textColor }]}
                   numberOfLines={1}
                   ellipsizeMode="clip"
                 >
@@ -172,8 +178,8 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
               <Text
                 style={[
                   styles.word,
-                  { fontSize: calcFontSize(word) },
-                  isLocked && showLock && styles.wordLocked,
+                  { fontSize: calcFontSize(word), color: textColor },
+                  isLocked && showLock && { color: lockedColor },
                 ]}
                 numberOfLines={1}
                 ellipsizeMode="clip"
@@ -198,7 +204,7 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
           <MaterialIcons
             name={isLocked ? "lock" : "lock-open"}
             size={16}
-            color={isLocked ? "#F5A623" : "#C0C0C5"}
+            color={isLocked ? primaryColor : mutedColor}
           />
         </Pressable>
       ) : null}
@@ -235,10 +241,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     textAlign: "center",
-    color: "#2D2D2D",
+    color: "#2D2D2D", // overridden by inline style
   },
   wordLocked: {
-    color: "#C48A1A",
+    color: "#C48A1A", // overridden by inline style
   },
   lockButton: {
     marginTop: 4,

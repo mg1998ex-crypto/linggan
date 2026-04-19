@@ -22,6 +22,7 @@ import { getRandomWords, getPartialRandomWords, getRandomWord } from "@/lib/word
 import { trpc } from "@/lib/trpc";
 import { useWordLibrary } from "@/lib/word-library-context";
 import { saveDraft, loadDraft, clearDraft, type Draft } from "@/lib/draft-storage";
+import { useThemeColors } from "@/hooks/use-theme-colors";
 
 type AppState = "idle" | "rolling" | "stopped" | "timeup";
 
@@ -29,6 +30,7 @@ const TOTAL_TIME = 5 * 60; // 5分钟
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function HomeScreen() {
+  const c = useThemeColors();
   const [state, setState] = useState<AppState>("idle");
   const [words, setWords] = useState<[string, string, string]>(["", "", ""]);
   const [content, setContent] = useState("");
@@ -37,7 +39,7 @@ export default function HomeScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [lockedIndices, setLockedIndices] = useState<[boolean, boolean, boolean]>([false, false, false]);
   const [rollerStopCount, setRollerStopCount] = useState(0);
-  const [isOvertime, setIsOvertime] = useState(false); // 超时模式(5分钟到后继续)
+  const [isOvertime, setIsOvertime] = useState(false);
 
   // 指定词功能
   const [showCustomWordInput, setShowCustomWordInput] = useState(false);
@@ -54,14 +56,12 @@ export default function HomeScreen() {
   const visibleCategories = getVisibleCategories();
   const selectedCategoryName = useMemo(() => {
     if (!selectedCategoryId) return "全部词库";
-    const cat = visibleCategories.find((c) => c.id === selectedCategoryId);
+    const cat = visibleCategories.find((vc) => vc.id === selectedCategoryId);
     return cat ? cat.name : "全部词库";
   }, [selectedCategoryId, visibleCategories]);
 
-  // 获取可用词语
   const availableWords = useMemo(() => getWordsForDrawing(), [libraryData, selectedCategoryId]);
 
-  // 构建词语到分类的映射(用于同分类过滤)
   const categoryMap = useMemo(() => {
     if (!libraryData) return new Map<string, string>();
     const map = new Map<string, string>();
@@ -97,25 +97,20 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // 计时器模式: 使用ref跟踪是否超时,避免嵌套setInterval
   const isOvertimeRef = useRef(false);
 
-  // 统一的计时器tick函数
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     isOvertimeRef.current = false;
     timerRef.current = setInterval(() => {
       if (isOvertimeRef.current) {
-        // 超时模式: 正计时
         setTimeLeft((prev) => prev + 1);
       } else {
-        // 倒计时模式
         setTimeLeft((prev) => {
           if (prev <= 1) {
-            // 倒计时结束,切换为超时模式
             isOvertimeRef.current = true;
             setIsOvertime(true);
-            return TOTAL_TIME + 1; // 从5:01开始
+            return TOTAL_TIME + 1;
           }
           return prev - 1;
         });
@@ -123,7 +118,6 @@ export default function HomeScreen() {
     }, 1000);
   }, []);
 
-  // 首次启动计时器
   const startTimer = useCallback(() => {
     if (timerStarted.current) return;
     timerStarted.current = true;
@@ -140,11 +134,8 @@ export default function HomeScreen() {
     }
   }, [state, words, content]);
 
-  // timeup状态不再使用(计时器到期后自动进入超时模式)
-  // 保留此effect以防万一
   useEffect(() => {
     if (state === "timeup") {
-      // 自动回到stopped状态继续使用
       setState("stopped");
     }
   }, [state]);
@@ -155,7 +146,6 @@ export default function HomeScreen() {
     return `${m}:${String(s).padStart(2, "0")}`;
   };
 
-  // 开始抽词
   const handleStart = useCallback(() => {
     if (availableWords.length < 3) {
       const msg = "当前词库词语不足3个,请切换分类或添加更多词语";
@@ -163,11 +153,7 @@ export default function HomeScreen() {
       else Alert.alert("提示", msg);
       return;
     }
-
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startTimer();
     const isFilteredByCategory = !!selectedCategoryId;
     const newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
@@ -178,7 +164,6 @@ export default function HomeScreen() {
     setState("rolling");
   }, [availableWords, startTimer, selectedCategoryId, categoryMap]);
 
-  // 指定词开始抽词
   const handleCustomWordStart = useCallback(() => {
     const trimmed = customWord.trim();
     if (!trimmed) return;
@@ -188,120 +173,81 @@ export default function HomeScreen() {
       else Alert.alert("提示", msg);
       return;
     }
-
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Keyboard.dismiss();
     setShowCustomWordInput(false);
-
     startTimer();
-
-    // 指定词放在第一位,随机匹配另外两个
     const word2 = getRandomWord(availableWords, [trimmed]);
     const word3 = getRandomWord(availableWords, [trimmed, word2]);
     const newWords: [string, string, string] = [trimmed, word2, word3];
     setWords(newWords);
     setContent("");
-    // 指定词自动锁定
     setLockedIndices([true, false, false]);
     setRollerStopCount(0);
     setState("rolling");
     setCustomWord("");
   }, [customWord, availableWords, startTimer]);
 
-  // 换一组(支持锁定)
   const handleRestart = useCallback(() => {
     if (availableWords.length < 3) return;
-
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
-
     const hasLocked = lockedIndices.some((l) => l);
     const isFilteredByCategory = !!selectedCategoryId;
-
     let newWords: [string, string, string];
     if (hasLocked) {
-      newWords = getPartialRandomWords(
-        availableWords, words, lockedIndices, 10, categoryMap, isFilteredByCategory
-      );
+      newWords = getPartialRandomWords(availableWords, words, lockedIndices, 10, categoryMap, isFilteredByCategory);
     } else {
       newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
     }
-
     setWords(newWords);
     setContent("");
     setRollerStopCount(0);
     setState("rolling");
   }, [availableWords, words, lockedIndices, selectedCategoryId, categoryMap]);
 
-  // 保存灵感
   const handleSave = useCallback(async () => {
     if (!canSave) return;
-
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
       await createInspiration.mutateAsync({
-        word1: words[0],
-        word2: words[1],
-        word3: words[2],
-        content: content.trim(),
+        word1: words[0], word2: words[1], word3: words[2], content: content.trim(),
       });
     } catch (e) {
       console.error("保存失败:", e);
     }
-
     clearDraft();
     setSaveSuccess(true);
     setLockedIndices([false, false, false]);
-
-    // 1.5秒后自动开始下一轮
     setTimeout(() => {
       setSaveSuccess(false);
-      // 无论计时器是否到期,都继续下一轮
       const isFilteredByCategory = !!selectedCategoryId;
       const newWords = getRandomWords(availableWords, 10, categoryMap, isFilteredByCategory);
       setWords(newWords);
       setContent("");
       setRollerStopCount(0);
       setState("rolling");
-
-      // 计时器已自动切换为超时模式,无需手动处理
     }, 1500);
   }, [canSave, words, content, availableWords, selectedCategoryId, categoryMap, createInspiration, isOvertime]);
 
-  // 单个roller停止回调
   const handleRollerStop = useCallback(() => {
     setRollerStopCount((prev) => {
       const next = prev + 1;
-      if (next >= 3) {
-        setState("stopped");
-      }
+      if (next >= 3) setState("stopped");
       return next;
     });
   }, []);
 
-  // 切换锁定
   const toggleLock = useCallback((index: number) => {
     setLockedIndices((prev) => {
       const next: [boolean, boolean, boolean] = [...prev];
-      // 不允许锁定全部3个
       const lockedCount = next.filter((l) => l).length;
-      if (!next[index] && lockedCount >= 2) {
-        return prev;
-      }
+      if (!next[index] && lockedCount >= 2) return prev;
       next[index] = !next[index];
       return next;
     });
   }, []);
 
-  // 分类选择
   const handleSelectCategory = useCallback((categoryId: string | null) => {
     setSelectedCategory(categoryId);
     setShowCategoryPicker(false);
@@ -309,17 +255,21 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        style={{ backgroundColor: c.background }}
+      >
+        <View style={[styles.container, { backgroundColor: c.background }]}>
           {/* 标题 + 计时器 */}
           <View style={styles.header}>
-            <Text style={styles.title}>灵 感</Text>
+            <Text style={[styles.title, { color: c.foreground }]}>灵 感</Text>
             {state !== "idle" && state !== "timeup" && (
               <Text style={[
-                styles.timer,
-                !isOvertime && timeLeft <= 60 && styles.timerWarning,
-                !isOvertime && timeLeft <= 10 && styles.timerExpired,
-                isOvertime && styles.timerOvertime,
+                styles.timer, { color: c.muted },
+                !isOvertime && timeLeft <= 60 && { color: c.primary },
+                !isOvertime && timeLeft <= 10 && { color: c.error },
+                isOvertime && { color: c.primary, fontWeight: "300" },
               ]}>
                 {isOvertime ? `+${formatTime(timeLeft - TOTAL_TIME)}` : formatTime(timeLeft)}
               </Text>
@@ -329,37 +279,47 @@ export default function HomeScreen() {
           {/* 时间到 */}
           {state === "timeup" && (
             <View style={styles.timeUpContainer}>
-              <Text style={styles.timeUpTitle}>今日灵感时间结束</Text>
-              <Text style={styles.timeUpSubtitle}>明天继续探索灵感</Text>
+              <Text style={[styles.timeUpTitle, { color: c.foreground }]}>今日灵感时间结束</Text>
+              <Text style={[styles.timeUpSubtitle, { color: c.muted }]}>明天继续探索灵感</Text>
             </View>
           )}
 
           {/* 状态1: 初始状态 */}
           {state === "idle" && (
             <View style={styles.idleContainer}>
-              {/* 分类筛选器 */}
               <Pressable
                 onPress={() => setShowCategoryPicker(true)}
-                style={({ pressed }) => [styles.categoryFilter, pressed && styles.filterPressed]}
+                style={({ pressed }) => [
+                  styles.categoryFilter,
+                  { backgroundColor: c.accentLight, borderColor: c.border },
+                  pressed && { opacity: 0.7 },
+                ]}
               >
-                <Text style={styles.categoryFilterText}>{selectedCategoryName}</Text>
-                <Text style={styles.categoryFilterArrow}>▼</Text>
+                <Text style={[styles.categoryFilterText, { color: c.muted }]}>{selectedCategoryName}</Text>
+                <Text style={[styles.categoryFilterArrow, { color: c.muted }]}>▼</Text>
               </Pressable>
 
               <Pressable
                 onPress={handleStart}
-                style={({ pressed }) => [styles.startButton, pressed && styles.buttonPressed]}
+                style={({ pressed }) => [
+                  styles.startButton,
+                  { backgroundColor: c.primary, borderColor: c.primary },
+                  pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] },
+                ]}
               >
-                <Text style={styles.startButtonText}>开 始</Text>
+                <Text style={[styles.startButtonText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>开 始</Text>
               </Pressable>
 
-              {/* 指定词入口 */}
               <Pressable
                 onPress={() => setShowCustomWordInput(true)}
-                style={({ pressed }) => [styles.customWordLink, pressed && { opacity: 0.5 }]}
+                style={({ pressed }) => [
+                  styles.customWordLink,
+                  { backgroundColor: c.accentLight, borderColor: c.badgeBg },
+                  pressed && { opacity: 0.5 },
+                ]}
               >
-                <MaterialIcons name="edit" size={16} color="#5A5A5A" />
-                <Text style={styles.customWordLinkText}>指定一个词</Text>
+                <MaterialIcons name="edit" size={16} color={c.accentDark} />
+                <Text style={[styles.customWordLinkText, { color: c.accentDark }]}>指定一个词</Text>
               </Pressable>
             </View>
           )}
@@ -367,110 +327,65 @@ export default function HomeScreen() {
           {/* 状态2: 动画播放中 */}
           {state === "rolling" && (
             <View style={styles.rollersContainer}>
-              <WordRoller
-                word={words[0]}
-                isRolling={true}
-                delay={1800}
-                onStop={handleRollerStop}
-                words={availableWords}
-                isLocked={lockedIndices[0]}
-              />
-              <WordRoller
-                word={words[1]}
-                isRolling={true}
-                delay={2200}
-                onStop={handleRollerStop}
-                words={availableWords}
-                isLocked={lockedIndices[1]}
-              />
-              <WordRoller
-                word={words[2]}
-                isRolling={true}
-                delay={2600}
-                onStop={handleRollerStop}
-                words={availableWords}
-                isLocked={lockedIndices[2]}
-              />
+              <WordRoller word={words[0]} isRolling={true} delay={1800} onStop={handleRollerStop} words={availableWords} isLocked={lockedIndices[0]} colors={c} />
+              <WordRoller word={words[1]} isRolling={true} delay={2200} onStop={handleRollerStop} words={availableWords} isLocked={lockedIndices[1]} colors={c} />
+              <WordRoller word={words[2]} isRolling={true} delay={2600} onStop={handleRollerStop} words={availableWords} isLocked={lockedIndices[2]} colors={c} />
             </View>
           )}
 
           {/* 状态3: 抽词完成 */}
           {state === "stopped" && (
             <>
-              {/* 三个词定格显示(带锁图标) */}
               <View style={styles.wordsDisplayContainer}>
-                <WordRoller
-                  word={words[0]}
-                  isRolling={false}
-                  delay={0}
-                  words={availableWords}
-                  isLocked={lockedIndices[0]}
-                  onToggleLock={() => toggleLock(0)}
-                  showLock={true}
-                />
-                <WordRoller
-                  word={words[1]}
-                  isRolling={false}
-                  delay={0}
-                  words={availableWords}
-                  isLocked={lockedIndices[1]}
-                  onToggleLock={() => toggleLock(1)}
-                  showLock={true}
-                />
-                <WordRoller
-                  word={words[2]}
-                  isRolling={false}
-                  delay={0}
-                  words={availableWords}
-                  isLocked={lockedIndices[2]}
-                  onToggleLock={() => toggleLock(2)}
-                  showLock={true}
-                />
+                <WordRoller word={words[0]} isRolling={false} delay={0} words={availableWords} isLocked={lockedIndices[0]} onToggleLock={() => toggleLock(0)} showLock={true} colors={c} />
+                <WordRoller word={words[1]} isRolling={false} delay={0} words={availableWords} isLocked={lockedIndices[1]} onToggleLock={() => toggleLock(1)} showLock={true} colors={c} />
+                <WordRoller word={words[2]} isRolling={false} delay={0} words={availableWords} isLocked={lockedIndices[2]} onToggleLock={() => toggleLock(2)} showLock={true} colors={c} />
               </View>
 
               {saveSuccess && (
                 <View style={styles.toastContainer}>
-                  <Text style={styles.toastText}>灵感已保存,继续下一组...</Text>
+                  <Text style={[styles.toastText, { color: c.primary }]}>灵感已保存,继续下一组...</Text>
                 </View>
               )}
 
               {!saveSuccess && (
                 <View style={styles.inputSection}>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.foreground }]}
                     placeholder="记录你的灵感点子..."
-                    placeholderTextColor="#8A8A8A"
+                    placeholderTextColor={c.muted}
                     multiline
                     value={content}
                     onChangeText={setContent}
                     returnKeyType="done"
                   />
-
                   <View style={styles.actionButtons}>
                     <Pressable
                       onPress={handleRestart}
                       style={({ pressed }) => [
                         styles.secondaryButton,
-                        pressed && styles.buttonPressed,
+                        { backgroundColor: c.surface, borderColor: c.primary },
+                        pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] },
                       ]}
                     >
-                      <Text style={styles.secondaryButtonText}>
+                      <Text style={[styles.secondaryButtonText, { color: c.primary }]}>
                         {lockedIndices.some((l) => l) ? "换未锁定" : "换一组"}
                       </Text>
                     </Pressable>
-
                     <Pressable
                       onPress={canSave ? handleSave : undefined}
                       disabled={!canSave}
                       style={({ pressed }) => [
                         styles.saveButton,
-                        !canSave && styles.saveButtonDisabled,
-                        pressed && canSave && styles.buttonPressed,
+                        { backgroundColor: c.primary, borderColor: c.primary },
+                        !canSave && { backgroundColor: c.surface, borderColor: c.border },
+                        pressed && canSave && { opacity: 0.7, transform: [{ scale: 0.97 }] },
                       ]}
                     >
                       <Text style={[
                         styles.saveButtonText,
-                        !canSave && styles.saveButtonTextDisabled,
+                        { color: c.isDark ? "#1C1C1E" : "#FFFFFF" },
+                        !canSave && { color: c.muted },
                       ]}>
                         保存灵感
                       </Text>
@@ -485,11 +400,11 @@ export default function HomeScreen() {
 
       {/* 分类筛选弹窗 */}
       <Modal visible={showCategoryPicker} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowCategoryPicker(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>选择词库分类</Text>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: c.overlayBg }]} onPress={() => setShowCategoryPicker(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: c.surface }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.modalTitle, { color: c.foreground }]}>选择词库分类</Text>
             <FlatList
-              data={[{ id: null, name: "全部词库", count: availableWords.length }, ...visibleCategories.map((c) => ({ id: c.id, name: c.name, count: c.words.length }))]}
+              data={[{ id: null, name: "全部词库", count: availableWords.length }, ...visibleCategories.map((vc) => ({ id: vc.id, name: vc.name, count: vc.words.length }))]}
               keyExtractor={(item) => item.id || "all"}
               style={styles.categoryPickerList}
               renderItem={({ item }) => (
@@ -497,25 +412,26 @@ export default function HomeScreen() {
                   onPress={() => handleSelectCategory(item.id)}
                   style={({ pressed }) => [
                     styles.categoryPickerItem,
-                    (item.id === selectedCategoryId || (item.id === null && !selectedCategoryId)) && styles.categoryPickerItemActive,
-                    pressed && styles.filterPressed,
+                    { backgroundColor: c.inputBg },
+                    (item.id === selectedCategoryId || (item.id === null && !selectedCategoryId)) && { backgroundColor: c.primary },
+                    pressed && { opacity: 0.7 },
                   ]}
                 >
                   <Text style={[
-                    styles.categoryPickerName,
-                    (item.id === selectedCategoryId || (item.id === null && !selectedCategoryId)) && styles.categoryPickerNameActive,
+                    styles.categoryPickerName, { color: c.foreground },
+                    (item.id === selectedCategoryId || (item.id === null && !selectedCategoryId)) && { color: c.isDark ? "#1C1C1E" : "#FFFFFF", fontWeight: "500" },
                   ]}>
                     {item.name}
                   </Text>
-                  <Text style={styles.categoryPickerCount}>{item.count} 词</Text>
+                  <Text style={[styles.categoryPickerCount, { color: c.muted }]}>{item.count} 词</Text>
                 </Pressable>
               )}
             />
             <Pressable
               onPress={() => setShowCategoryPicker(false)}
-              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.filterPressed]}
+              style={({ pressed }) => [styles.modalCloseButton, { backgroundColor: c.accentLight }, pressed && { opacity: 0.7 }]}
             >
-              <Text style={styles.modalCloseText}>关闭</Text>
+              <Text style={[styles.modalCloseText, { color: c.muted }]}>关闭</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -523,14 +439,14 @@ export default function HomeScreen() {
 
       {/* 指定词输入弹窗 */}
       <Modal visible={showCustomWordInput} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => { setShowCustomWordInput(false); Keyboard.dismiss(); }}>
-          <Pressable style={styles.customWordModal} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>指定一个词</Text>
-            <Text style={styles.customWordHint}>输入你想要的词,系统将随机匹配另外两个词</Text>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: c.overlayBg }]} onPress={() => { setShowCustomWordInput(false); Keyboard.dismiss(); }}>
+          <Pressable style={[styles.customWordModal, { backgroundColor: c.surface }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.modalTitle, { color: c.foreground }]}>指定一个词</Text>
+            <Text style={[styles.customWordHint, { color: c.muted }]}>输入你想要的词,系统将随机匹配另外两个词</Text>
             <TextInput
-              style={styles.customWordInput}
+              style={[styles.customWordInput, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.foreground }]}
               placeholder="输入词语..."
-              placeholderTextColor="#BDBDBD"
+              placeholderTextColor={c.muted}
               value={customWord}
               onChangeText={setCustomWord}
               autoFocus
@@ -541,22 +457,24 @@ export default function HomeScreen() {
             <View style={styles.customWordActions}>
               <Pressable
                 onPress={() => { setShowCustomWordInput(false); setCustomWord(""); Keyboard.dismiss(); }}
-                style={({ pressed }) => [styles.customWordCancel, pressed && { opacity: 0.7 }]}
+                style={({ pressed }) => [styles.customWordCancel, { backgroundColor: c.accentLight }, pressed && { opacity: 0.7 }]}
               >
-                <Text style={styles.customWordCancelText}>取消</Text>
+                <Text style={[styles.customWordCancelText, { color: c.muted }]}>取消</Text>
               </Pressable>
               <Pressable
                 onPress={customWord.trim() ? handleCustomWordStart : undefined}
                 disabled={!customWord.trim()}
                 style={({ pressed }) => [
                   styles.customWordConfirm,
-                  !customWord.trim() && styles.customWordConfirmDisabled,
+                  { backgroundColor: c.primary },
+                  !customWord.trim() && { backgroundColor: c.border },
                   pressed && customWord.trim() && { opacity: 0.7 },
                 ]}
               >
                 <Text style={[
                   styles.customWordConfirmText,
-                  !customWord.trim() && styles.customWordConfirmTextDisabled,
+                  { color: c.isDark ? "#1C1C1E" : "#FFFFFF" },
+                  !customWord.trim() && { color: c.muted },
                 ]}>开始抽词</Text>
               </Pressable>
             </View>
@@ -571,122 +489,96 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1 },
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
   header: { alignItems: "center", marginBottom: 60 },
-  title: { fontSize: 32, fontWeight: "300", color: "#2D2D2D", letterSpacing: 8 },
-  timer: { marginTop: 16, fontSize: 18, fontWeight: "400", color: "#8E8E93", letterSpacing: 2 },
-  timerWarning: { color: "#F5A623" },
-  timerExpired: { color: "#E8940A" },
-  timerOvertime: { color: "#E8940A", fontWeight: "300" },
+  title: { fontSize: 32, fontWeight: "300", letterSpacing: 8 },
+  timer: { marginTop: 16, fontSize: 18, fontWeight: "400", letterSpacing: 2 },
 
   timeUpContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 120 },
-  timeUpTitle: { fontSize: 22, fontWeight: "400", color: "#2D2D2D", letterSpacing: 4, marginBottom: 12 },
-  timeUpSubtitle: { fontSize: 15, fontWeight: "300", color: "#8E8E93", letterSpacing: 2 },
+  timeUpTitle: { fontSize: 22, fontWeight: "400", letterSpacing: 4, marginBottom: 12 },
+  timeUpSubtitle: { fontSize: 15, fontWeight: "300", letterSpacing: 2 },
 
-  /* 状态1: 初始状态 */
   idleContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 120 },
 
-  /* 分类筛选器 */
   categoryFilter: {
     flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8,
-    backgroundColor: "#FFF8EE", borderRadius: 20, marginBottom: 32,
-    borderWidth: 1, borderColor: "#F0EDE8",
+    borderRadius: 20, marginBottom: 32, borderWidth: 1,
   },
-  categoryFilterText: { fontSize: 14, color: "#6B6B6B", letterSpacing: 1 },
-  categoryFilterArrow: { fontSize: 12, color: "#8E8E93", marginLeft: 6 },
-  filterPressed: { opacity: 0.7 },
+  categoryFilterText: { fontSize: 14, letterSpacing: 1 },
+  categoryFilterArrow: { fontSize: 12, marginLeft: 6 },
 
   startButton: {
-    paddingHorizontal: 64, paddingVertical: 20, backgroundColor: "#F5A623",
-    borderRadius: 40, borderWidth: 1, borderColor: "#F5A623",
+    paddingHorizontal: 64, paddingVertical: 20, borderRadius: 40, borderWidth: 1,
   },
-  startButtonText: { fontSize: 18, fontWeight: "400", color: "#FFFFFF", letterSpacing: 6 },
+  startButtonText: { fontSize: 18, fontWeight: "400", letterSpacing: 6 },
 
-  /* 指定词入口 */
   customWordLink: {
     flexDirection: "row", alignItems: "center", marginTop: 28, paddingVertical: 10, paddingHorizontal: 20,
-    backgroundColor: "#FFF8EE", borderRadius: 20, borderWidth: 1, borderColor: "#F5D9A8",
+    borderRadius: 20, borderWidth: 1,
   },
-  customWordLinkText: { fontSize: 14, color: "#C48A1A", letterSpacing: 1, marginLeft: 6, fontWeight: "500" },
+  customWordLinkText: { fontSize: 14, letterSpacing: 1, marginLeft: 6, fontWeight: "500" },
 
-  /* 状态2: 动画播放中 */
   rollersContainer: {
     flexDirection: "row", justifyContent: "center", alignItems: "flex-start",
     marginTop: 40, marginBottom: 40, gap: 8,
   },
 
-  /* 状态3: 抽词完成 */
   wordsDisplayContainer: {
     flexDirection: "row", justifyContent: "center", alignItems: "flex-start",
     marginTop: 20, marginBottom: 24, gap: 8,
   },
   inputSection: { paddingHorizontal: 4, marginBottom: 40 },
   input: {
-    backgroundColor: "#FFFCF7", borderRadius: 12, padding: 20, fontSize: 16,
-    lineHeight: 24, minHeight: 160, textAlignVertical: "top", color: "#2D2D2D",
-    borderWidth: 1, borderColor: "#F0EDE8",
+    borderRadius: 12, padding: 20, fontSize: 16,
+    lineHeight: 24, minHeight: 160, textAlignVertical: "top", borderWidth: 1,
   },
   actionButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 20, gap: 16 },
   secondaryButton: {
-    flex: 1, paddingVertical: 16, backgroundColor: "#FFFFFF", borderRadius: 30,
-    alignItems: "center", borderWidth: 1, borderColor: "#F5A623",
+    flex: 1, paddingVertical: 16, borderRadius: 30,
+    alignItems: "center", borderWidth: 1,
   },
-  secondaryButtonText: { fontSize: 15, fontWeight: "400", color: "#F5A623", letterSpacing: 2 },
+  secondaryButtonText: { fontSize: 15, fontWeight: "400", letterSpacing: 2 },
   saveButton: {
-    flex: 1, paddingVertical: 16, backgroundColor: "#F5A623", borderRadius: 30,
-    alignItems: "center", borderWidth: 1, borderColor: "#F5A623",
+    flex: 1, paddingVertical: 16, borderRadius: 30,
+    alignItems: "center", borderWidth: 1,
   },
-  saveButtonText: { fontSize: 15, fontWeight: "400", color: "#FFFFFF", letterSpacing: 2 },
-  saveButtonDisabled: { backgroundColor: "#FFFFFF", borderColor: "#E0E0E0" },
-  saveButtonTextDisabled: { color: "#BDBDBD" },
-  buttonPressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  saveButtonText: { fontSize: 15, fontWeight: "400", letterSpacing: 2 },
 
   toastContainer: { alignItems: "center", marginTop: 40 },
-  toastText: { fontSize: 16, color: "#F5A623", letterSpacing: 2 },
+  toastText: { fontSize: 16, letterSpacing: 2 },
 
-  /* 弹窗通用 */
   modalOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center",
-    alignItems: "center", paddingHorizontal: 32,
+    flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32,
   },
   modalContent: {
-    backgroundColor: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 360,
-    maxHeight: "70%",
+    borderRadius: 16, padding: 24, width: "100%", maxWidth: 360, maxHeight: "70%",
   },
-  modalTitle: { fontSize: 18, fontWeight: "500", color: "#2C2C2C", marginBottom: 16, textAlign: "center" },
+  modalTitle: { fontSize: 18, fontWeight: "500", marginBottom: 16, textAlign: "center" },
   categoryPickerList: { maxHeight: 400 },
   categoryPickerItem: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10, marginBottom: 6,
-    backgroundColor: "#FFFCF7",
   },
-  categoryPickerItemActive: { backgroundColor: "#F5A623" },
-  categoryPickerName: { fontSize: 15, color: "#2D2D2D" },
-  categoryPickerNameActive: { color: "#FFFFFF", fontWeight: "500" },
-  categoryPickerCount: { fontSize: 13, color: "#8A8A8A" },
+  categoryPickerName: { fontSize: 15 },
+  categoryPickerCount: { fontSize: 13 },
   modalCloseButton: {
-    marginTop: 16, paddingVertical: 14, backgroundColor: "#FFF8EE",
-    borderRadius: 24, alignItems: "center",
+    marginTop: 16, paddingVertical: 14, borderRadius: 24, alignItems: "center",
   },
-  modalCloseText: { fontSize: 15, color: "#5A5A5A" },
+  modalCloseText: { fontSize: 15 },
 
-  /* 指定词弹窗 */
   customWordModal: {
-    backgroundColor: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 340,
+    borderRadius: 16, padding: 24, width: "100%", maxWidth: 340,
   },
-  customWordHint: { fontSize: 13, color: "#8A8A8A", textAlign: "center", marginBottom: 20, lineHeight: 18 },
+  customWordHint: { fontSize: 13, textAlign: "center", marginBottom: 20, lineHeight: 18 },
   customWordInput: {
-    backgroundColor: "#FFFCF7", borderRadius: 12, padding: 16, fontSize: 18,
-    textAlign: "center", color: "#2D2D2D", borderWidth: 1, borderColor: "#F0EDE8",
-    letterSpacing: 2,
+    borderRadius: 12, padding: 16, fontSize: 18,
+    textAlign: "center", borderWidth: 1, letterSpacing: 2,
   },
   customWordActions: { flexDirection: "row", marginTop: 20, gap: 12 },
   customWordCancel: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#FFF8EE", borderRadius: 24, alignItems: "center",
+    flex: 1, paddingVertical: 14, borderRadius: 24, alignItems: "center",
   },
-  customWordCancelText: { fontSize: 15, color: "#5A5A5A" },
+  customWordCancelText: { fontSize: 15 },
   customWordConfirm: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#F5A623", borderRadius: 24, alignItems: "center",
+    flex: 1, paddingVertical: 14, borderRadius: 24, alignItems: "center",
   },
-  customWordConfirmDisabled: { backgroundColor: "#E0E0E0" },
-  customWordConfirmText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500" },
-  customWordConfirmTextDisabled: { color: "#BDBDBD" },
+  customWordConfirmText: { fontSize: 15, fontWeight: "500" },
 });

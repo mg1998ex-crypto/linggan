@@ -20,6 +20,11 @@ const MAPPING = {
   "chevron.right": "chevron-right",
   "book.fill": "menu-book",
   "info.circle.fill": "info",
+  "gearshape.fill": "settings",
+  "exclamationmark.bubble.fill": "feedback",
+  "clock.fill": "history",
+  "checkmark.circle.fill": "check-circle",
+  "xmark.circle.fill": "cancel",
 } as IconMapping;
 
 /**

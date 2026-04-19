@@ -1,7 +1,7 @@
 /**
  * 灵感详情页面
  * 查看、编辑、删除、分享灵感记录
- * 包含AI分析占位区域（功能即将推出）
+ * AI创意分析功能（调用用户配置的LLM API）
  * 
  * 分享功能:
  * - Web端: Canvas绘制卡片 → 下载PNG图片 / 复制文字
@@ -18,6 +18,8 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { trpc } from "@/lib/trpc";
+import { useThemeColors } from "@/hooks/use-theme-colors";
+import { analyzeInspiration, isAIServiceAvailable } from "@/services/aiService";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -79,6 +81,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 export default function InspirationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const c = useThemeColors();
   const inspirationId = Number(id);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -86,6 +89,12 @@ export default function InspirationDetailScreen() {
   const [showShareCard, setShowShareCard] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const shareCardRef = useRef<any>(null);
+
+  // AI 分析状态
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiAvailable, setAiAvailable] = useState(false);
 
   const { data: inspiration, isLoading, refetch } = trpc.inspirations.getById.useQuery(
     { id: inspirationId },
@@ -97,8 +106,17 @@ export default function InspirationDetailScreen() {
   useEffect(() => {
     if (inspiration) {
       setEditContent(inspiration.content);
+      // 如果已有 AI 分析结果，显示它
+      if ((inspiration as any).aiAnalysis) {
+        setAiResult((inspiration as any).aiAnalysis);
+      }
     }
   }, [inspiration]);
+
+  // 检查 AI 服务是否可用
+  useEffect(() => {
+    isAIServiceAvailable().then(setAiAvailable);
+  }, []);
 
   const formatDate = (date: Date) => {
     const d = new Date(date);
@@ -119,9 +137,7 @@ export default function InspirationDetailScreen() {
   };
 
   const handleStartEdit = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsEditing(true);
   };
 
@@ -133,9 +149,7 @@ export default function InspirationDetailScreen() {
 
   const handleSaveEdit = async () => {
     if (!editContent.trim()) return;
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Keyboard.dismiss();
     try {
       await updateInspiration.mutateAsync({ id: inspirationId, content: editContent.trim() });
@@ -143,7 +157,6 @@ export default function InspirationDetailScreen() {
       refetch();
       if (Platform.OS !== "web") Alert.alert("", "修改已保存");
     } catch (e) {
-      console.error("更新失败:", e);
       const msg = "保存失败,请重试";
       if (Platform.OS === "web") alert(msg);
       else Alert.alert("错误", msg);
@@ -151,18 +164,13 @@ export default function InspirationDetailScreen() {
   };
 
   const handleDelete = () => {
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    }
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     const confirmDelete = async () => {
       try {
         await deleteInspiration.mutateAsync({ id: inspirationId });
-        if (Platform.OS !== "web") {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.back();
       } catch (e) {
-        console.error("删除失败:", e);
         const msg = "删除失败,请重试";
         if (Platform.OS === "web") alert(msg);
         else Alert.alert("错误", msg);
@@ -179,10 +187,59 @@ export default function InspirationDetailScreen() {
   };
 
   const handleShare = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowShareCard(true);
+  };
+
+  // ===== AI 分析 =====
+  const handleAIAnalyze = async () => {
+    if (!inspiration) return;
+
+    if (!aiAvailable) {
+      const msg = "请先在设置中配置 AI 服务的 API Key";
+      if (Platform.OS === "web") {
+        if (confirm(msg + "\n\n是否前往设置？")) {
+          router.push("/settings");
+        }
+      } else {
+        Alert.alert("未配置 AI 服务", msg, [
+          { text: "取消", style: "cancel" },
+          { text: "前往设置", onPress: () => router.push("/settings") },
+        ]);
+      }
+      return;
+    }
+
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      const result = await analyzeInspiration(
+        [inspiration.word1, inspiration.word2, inspiration.word3],
+        inspiration.content
+      );
+      setAiResult(result);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // 尝试保存到数据库
+      try {
+        await updateInspiration.mutateAsync({
+          id: inspirationId,
+          content: inspiration.content,
+          aiAnalysis: result,
+        });
+        refetch();
+      } catch { /* 保存失败不影响显示 */ }
+    } catch (e: any) {
+      if (e.message === "NO_API_KEY") {
+        setAiError("请先在设置中配置 AI 服务的 API Key");
+      } else {
+        setAiError(e.message || "AI 分析失败，请重试");
+      }
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   // ===== Web端：Canvas生成图片并下载 =====
@@ -201,12 +258,10 @@ export default function InspirationDetailScreen() {
       canvas.height = 1200 * scale;
       ctx.scale(scale, scale);
 
-      // 计算内容文字行数
       ctx.font = "16px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
       const lines = wrapText(ctx, inspiration.content, contentWidth);
       const contentHeight = lines.length * 26;
 
-      // 计算卡片高度
       const wordsHeight = 40;
       const dividerMargin = 24;
       const footerHeight = 40;
@@ -216,10 +271,8 @@ export default function InspirationDetailScreen() {
       canvas.height = totalHeight * scale;
       ctx.scale(scale, scale);
 
-      // 暖阳渐变背景
       drawRoundRect(ctx, 0, 0, cardWidth, totalHeight, 20, "#FFFCF7");
 
-      // 顶部装饰线
       ctx.beginPath();
       ctx.moveTo(padding, padding - 8);
       ctx.lineTo(cardWidth - padding, padding - 8);
@@ -230,7 +283,6 @@ export default function InspirationDetailScreen() {
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // 三个词
       let y = padding + 8;
       ctx.font = "bold 20px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
       ctx.fillStyle = "#C48A1A";
@@ -238,7 +290,6 @@ export default function InspirationDetailScreen() {
       ctx.fillText(`${inspiration.word1}  ·  ${inspiration.word2}  ·  ${inspiration.word3}`, cardWidth / 2, y + 28);
       y += wordsHeight + dividerMargin;
 
-      // 分隔线
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(cardWidth - padding, y);
@@ -247,7 +298,6 @@ export default function InspirationDetailScreen() {
       ctx.stroke();
       y += dividerMargin;
 
-      // 内容文字
       ctx.font = "16px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
       ctx.fillStyle = "#2D2D2D";
       ctx.textAlign = "left";
@@ -257,7 +307,6 @@ export default function InspirationDetailScreen() {
       }
       y += 32;
 
-      // 底部分隔线
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(cardWidth - padding, y);
@@ -266,7 +315,6 @@ export default function InspirationDetailScreen() {
       ctx.stroke();
       y += 20;
 
-      // 日期和品牌
       ctx.font = "12px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
       ctx.fillStyle = "#B0B0B5";
       ctx.textAlign = "left";
@@ -276,7 +324,6 @@ export default function InspirationDetailScreen() {
       ctx.font = "300 14px -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif";
       ctx.fillText("灵 感", cardWidth - padding, y + 10);
 
-      // 下载图片
       const dataUrl = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.download = `灵感_${inspiration.word1}_${inspiration.word2}_${inspiration.word3}.png`;
@@ -288,14 +335,12 @@ export default function InspirationDetailScreen() {
       alert("图片已保存到下载文件夹");
       setShowShareCard(false);
     } catch (e) {
-      console.error("保存图片失败:", e);
       alert("保存图片失败,请重试");
     } finally {
       setIsSharing(false);
     }
   };
 
-  // ===== Web端：复制文字 =====
   const handleWebCopyText = async () => {
     if (!inspiration) return;
     try {
@@ -308,7 +353,6 @@ export default function InspirationDetailScreen() {
     }
   };
 
-  // ===== 原生端：截图分享 =====
   const handleNativeShare = async () => {
     if (isSharing) return;
     setIsSharing(true);
@@ -327,14 +371,9 @@ export default function InspirationDetailScreen() {
         if (status === "granted") {
           await MediaLibrary.saveToLibraryAsync(uri);
           Alert.alert("", "图片已保存到相册");
-        } else {
-          Alert.alert("提示", "需要相册权限才能保存图片");
         }
-      } else {
-        Alert.alert("提示", "分享功能暂不可用");
       }
     } catch (e) {
-      console.error("分享失败:", e);
       Alert.alert("提示", "分享失败,请重试");
     } finally {
       setShowShareCard(false);
@@ -342,15 +381,11 @@ export default function InspirationDetailScreen() {
     }
   };
 
-  // ===== 原生端：保存到相册 =====
   const handleNativeSaveToAlbum = async () => {
     if (isSharing) return;
     setIsSharing(true);
     try {
-      if (!captureRef || !shareCardRef.current) {
-        setIsSharing(false);
-        return;
-      }
+      if (!captureRef || !shareCardRef.current) { setIsSharing(false); return; }
       await new Promise(resolve => setTimeout(resolve, 300));
       const uri = await captureRef(shareCardRef.current, { format: "png", quality: 1, result: "tmpfile" });
       if (MediaLibrary) {
@@ -359,12 +394,9 @@ export default function InspirationDetailScreen() {
           await MediaLibrary.saveToLibraryAsync(uri);
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert("", "图片已保存到相册");
-        } else {
-          Alert.alert("提示", "需要相册权限才能保存图片");
         }
       }
     } catch (e) {
-      console.error("保存失败:", e);
       Alert.alert("提示", "保存失败,请重试");
     } finally {
       setShowShareCard(false);
@@ -375,8 +407,8 @@ export default function InspirationDetailScreen() {
   if (isLoading) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#F5A623" />
+        <View style={[styles.loadingContainer, { backgroundColor: c.background }]}>
+          <ActivityIndicator size="small" color={c.primary} />
         </View>
       </ScreenContainer>
     );
@@ -385,20 +417,18 @@ export default function InspirationDetailScreen() {
   if (!inspiration) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.emptyText}>灵感记录不存在</Text>
+        <View style={[styles.loadingContainer, { backgroundColor: c.background }]}>
+          <Text style={[styles.emptyText, { color: c.muted }]}>灵感记录不存在</Text>
           <Pressable onPress={() => router.back()} style={styles.backLink}>
-            <Text style={styles.backLinkText}>返回列表</Text>
+            <Text style={[styles.backLinkText, { color: c.primary }]}>返回列表</Text>
           </Pressable>
         </View>
       </ScreenContainer>
     );
   }
 
-  // 分享卡片内容（用于截图和预览）
   const ShareCardContent = () => (
     <View style={shareStyles.card}>
-      {/* 顶部装饰线 */}
       <View style={shareStyles.topAccent} />
       <View style={shareStyles.wordsSection}>
         <Text style={shareStyles.word1}>{inspiration.word1}</Text>
@@ -418,7 +448,11 @@ export default function InspirationDetailScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { backgroundColor: c.background }]}
+        keyboardShouldPersistTaps="handled"
+        style={{ backgroundColor: c.background }}
+      >
         {/* 顶部导航栏 */}
         <View style={styles.navbar}>
           <Pressable
@@ -426,7 +460,7 @@ export default function InspirationDetailScreen() {
             style={({ pressed }) => [styles.navButton, pressed && { opacity: 0.5 }]}
             hitSlop={12}
           >
-            <MaterialIcons name="arrow-back" size={24} color="#2D2D2D" />
+            <MaterialIcons name="arrow-back" size={24} color={c.foreground} />
           </Pressable>
           <View style={styles.navActions}>
             {!isEditing ? (
@@ -436,21 +470,21 @@ export default function InspirationDetailScreen() {
                   style={({ pressed }) => [styles.navButton, pressed && { opacity: 0.5 }]}
                   hitSlop={12}
                 >
-                  <MaterialIcons name="ios-share" size={22} color="#2D2D2D" />
+                  <MaterialIcons name="ios-share" size={22} color={c.foreground} />
                 </Pressable>
                 <Pressable
                   onPress={handleStartEdit}
                   style={({ pressed }) => [styles.navButton, { marginLeft: 16 }, pressed && { opacity: 0.5 }]}
                   hitSlop={12}
                 >
-                  <MaterialIcons name="edit" size={22} color="#2D2D2D" />
+                  <MaterialIcons name="edit" size={22} color={c.foreground} />
                 </Pressable>
                 <Pressable
                   onPress={handleDelete}
                   style={({ pressed }) => [styles.navButton, { marginLeft: 16 }, pressed && { opacity: 0.5 }]}
                   hitSlop={12}
                 >
-                  <MaterialIcons name="delete-outline" size={22} color="#E74C3C" />
+                  <MaterialIcons name="delete-outline" size={22} color={c.error} />
                 </Pressable>
               </>
             ) : null}
@@ -460,90 +494,129 @@ export default function InspirationDetailScreen() {
         {/* 三个原词 */}
         <View style={styles.wordsSection}>
           <View style={styles.wordsRow}>
-            <Text style={styles.wordText}>{inspiration.word1}</Text>
-            <Text style={styles.wordDot}>·</Text>
-            <Text style={styles.wordText}>{inspiration.word2}</Text>
-            <Text style={styles.wordDot}>·</Text>
-            <Text style={styles.wordText}>{inspiration.word3}</Text>
+            <Text style={[styles.wordText, { color: c.accentDark }]}>{inspiration.word1}</Text>
+            <Text style={[styles.wordDot, { color: c.badgeBg }]}>·</Text>
+            <Text style={[styles.wordText, { color: c.accentDark }]}>{inspiration.word2}</Text>
+            <Text style={[styles.wordDot, { color: c.badgeBg }]}>·</Text>
+            <Text style={[styles.wordText, { color: c.accentDark }]}>{inspiration.word3}</Text>
           </View>
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: c.border }]} />
 
         {/* 灵感内容 */}
         <View style={styles.contentSection}>
           {isEditing ? (
             <>
               <TextInput
-                style={styles.editInput}
+                style={[styles.editInput, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.foreground }]}
                 multiline
                 value={editContent}
                 onChangeText={setEditContent}
                 autoFocus
                 placeholder="编辑灵感内容..."
-                placeholderTextColor="#B0B0B5"
+                placeholderTextColor={c.muted}
               />
               <View style={styles.editActions}>
                 <Pressable
                   onPress={handleCancelEdit}
-                  style={({ pressed }) => [styles.cancelButton, pressed && { opacity: 0.7 }]}
+                  style={({ pressed }) => [styles.cancelButton, { backgroundColor: c.surface, borderColor: c.border }, pressed && { opacity: 0.7 }]}
                 >
-                  <Text style={styles.cancelButtonText}>取消</Text>
+                  <Text style={[styles.cancelButtonText, { color: c.muted }]}>取消</Text>
                 </Pressable>
                 <Pressable
                   onPress={editContent.trim() ? handleSaveEdit : undefined}
                   disabled={!editContent.trim()}
                   style={({ pressed }) => [
                     styles.saveEditButton,
-                    !editContent.trim() && styles.saveEditButtonDisabled,
+                    { backgroundColor: c.primary },
+                    !editContent.trim() && { backgroundColor: c.border },
                     pressed && editContent.trim() && { opacity: 0.7 },
                   ]}
                 >
                   <Text style={[
                     styles.saveEditButtonText,
-                    !editContent.trim() && styles.saveEditButtonTextDisabled,
+                    { color: c.isDark ? "#1C1C1E" : "#FFFFFF" },
+                    !editContent.trim() && { color: c.muted },
                   ]}>保存修改</Text>
                 </Pressable>
               </View>
             </>
           ) : (
-            <Text style={styles.contentText}>{inspiration.content}</Text>
+            <Text style={[styles.contentText, { color: c.foreground }]}>{inspiration.content}</Text>
           )}
         </View>
 
-        {/* AI 分析占位区域 */}
+        {/* AI 创意分析区域 */}
         {!isEditing && (
-          <View style={styles.aiSection}>
+          <View style={[styles.aiSection, { backgroundColor: c.accentLight, borderColor: c.isDark ? c.border : "#F5D9A8" }]}>
             <View style={styles.aiHeader}>
-              <MaterialIcons name="auto-awesome" size={18} color="#F5A623" />
-              <Text style={styles.aiTitle}>AI 创意分析</Text>
-              <View style={styles.aiBadge}>
-                <Text style={styles.aiBadgeText}>即将推出</Text>
-              </View>
+              <MaterialIcons name="auto-awesome" size={18} color={c.primary} />
+              <Text style={[styles.aiTitle, { color: c.accentDark }]}>AI 创意分析</Text>
+              {aiResult && !aiLoading && (
+                <Pressable
+                  onPress={handleAIAnalyze}
+                  style={({ pressed }) => [styles.aiRetryBtn, pressed && { opacity: 0.7 }]}
+                >
+                  <MaterialIcons name="refresh" size={16} color={c.primary} />
+                </Pressable>
+              )}
             </View>
-            <Text style={styles.aiDescription}>
-              AI 将为你的灵感提供深度分析，包括创意解读、联想拓展和可行性评估。
-            </Text>
-            <View style={styles.aiPreviewItems}>
-              <View style={styles.aiPreviewItem}>
-                <MaterialIcons name="lightbulb-outline" size={16} color="#F5D9A8" />
-                <Text style={styles.aiPreviewText}>创意解读</Text>
+
+            {aiResult ? (
+              /* 显示 AI 分析结果 */
+              <View style={[styles.aiResultContainer, { borderLeftColor: c.primary }]}>
+                <Text style={[styles.aiResultText, { color: c.foreground }]}>{aiResult}</Text>
               </View>
-              <View style={styles.aiPreviewItem}>
-                <MaterialIcons name="trending-up" size={16} color="#F5D9A8" />
-                <Text style={styles.aiPreviewText}>创意评分</Text>
+            ) : aiLoading ? (
+              /* 加载中 */
+              <View style={styles.aiLoadingContainer}>
+                <ActivityIndicator size="small" color={c.primary} />
+                <Text style={[styles.aiLoadingText, { color: c.muted }]}>AI 正在分析你的灵感...</Text>
               </View>
-              <View style={styles.aiPreviewItem}>
-                <MaterialIcons name="explore" size={16} color="#F5D9A8" />
-                <Text style={styles.aiPreviewText}>相似灵感</Text>
+            ) : aiError ? (
+              /* 错误提示 */
+              <View>
+                <Text style={[styles.aiErrorText, { color: c.error }]}>{aiError}</Text>
+                <Pressable
+                  onPress={handleAIAnalyze}
+                  style={({ pressed }) => [
+                    styles.aiAnalyzeBtn,
+                    { backgroundColor: c.primary },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <MaterialIcons name="refresh" size={16} color={c.isDark ? "#1C1C1E" : "#FFFFFF"} />
+                  <Text style={[styles.aiAnalyzeBtnText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>重试</Text>
+                </Pressable>
               </View>
-            </View>
+            ) : (
+              /* 初始状态 - 分析按钮 */
+              <View>
+                <Text style={[styles.aiDescription, { color: c.muted }]}>
+                  AI 将为你的灵感提供创意解读、评分和延伸思考方向。
+                </Text>
+                <Pressable
+                  onPress={handleAIAnalyze}
+                  style={({ pressed }) => [
+                    styles.aiAnalyzeBtn,
+                    { backgroundColor: c.primary },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <MaterialIcons name="auto-awesome" size={16} color={c.isDark ? "#1C1C1E" : "#FFFFFF"} />
+                  <Text style={[styles.aiAnalyzeBtnText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+                    {aiAvailable ? "开始分析" : "配置 AI 后使用"}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
 
         {!isEditing && (
-          <View style={styles.metaSection}>
-            <Text style={styles.metaText}>{formatDate(inspiration.createdAt)}</Text>
+          <View style={[styles.metaSection, { borderTopColor: c.border }]}>
+            <Text style={[styles.metaText, { color: c.muted }]}>{formatDate(inspiration.createdAt)}</Text>
           </View>
         )}
       </ScrollView>
@@ -555,9 +628,8 @@ export default function InspirationDetailScreen() {
         animationType="fade"
         onRequestClose={() => !isSharing && setShowShareCard(false)}
       >
-        <View style={shareStyles.overlay}>
+        <View style={[shareStyles.overlay, { backgroundColor: c.overlayBg }]}>
           <View style={shareStyles.modalContent}>
-            {/* 卡片预览 */}
             {Platform.OS !== "web" && ViewShot ? (
               <ViewShot ref={shareCardRef} options={{ format: "png", quality: 1 }}>
                 <ShareCardContent />
@@ -566,7 +638,6 @@ export default function InspirationDetailScreen() {
               <ShareCardContent />
             )}
 
-            {/* 操作按钮 */}
             <View style={shareStyles.actions}>
               {Platform.OS !== "web" ? (
                 <>
@@ -574,7 +645,7 @@ export default function InspirationDetailScreen() {
                     onPress={handleNativeShare}
                     disabled={isSharing}
                     style={({ pressed }) => [
-                      shareStyles.actionBtn, shareStyles.actionBtnPrimary,
+                      shareStyles.actionBtn, { backgroundColor: c.primary },
                       isSharing && { opacity: 0.5 },
                       pressed && { opacity: 0.7 },
                     ]}
@@ -605,7 +676,7 @@ export default function InspirationDetailScreen() {
                     onPress={handleWebSaveImage}
                     disabled={isSharing}
                     style={({ pressed }) => [
-                      shareStyles.actionBtn, shareStyles.actionBtnPrimary,
+                      shareStyles.actionBtn, { backgroundColor: c.primary },
                       isSharing && { opacity: 0.5 },
                       pressed && { opacity: 0.7 },
                     ]}
@@ -645,9 +716,9 @@ export default function InspirationDetailScreen() {
 const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingHorizontal: 28, paddingBottom: 40 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyText: { fontSize: 16, color: "#8E8E93", marginBottom: 16 },
+  emptyText: { fontSize: 16, marginBottom: 16 },
   backLink: { paddingVertical: 8, paddingHorizontal: 16 },
-  backLinkText: { fontSize: 15, color: "#F5A623", textDecorationLine: "underline" },
+  backLinkText: { fontSize: 15, textDecorationLine: "underline" },
   navbar: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingTop: 12, paddingBottom: 20,
@@ -656,66 +727,67 @@ const styles = StyleSheet.create({
   navActions: { flexDirection: "row", alignItems: "center" },
   wordsSection: { alignItems: "center", paddingVertical: 32 },
   wordsRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", justifyContent: "center" },
-  wordText: { fontSize: 22, fontWeight: "700", color: "#C48A1A", letterSpacing: 2 },
-  wordDot: { fontSize: 18, color: "#F5D9A8", marginHorizontal: 12 },
-  divider: { height: 1, backgroundColor: "#F0EDE8", marginHorizontal: 20, marginBottom: 32 },
+  wordText: { fontSize: 22, fontWeight: "700", letterSpacing: 2 },
+  wordDot: { fontSize: 18, marginHorizontal: 12 },
+  divider: { height: 1, marginHorizontal: 20, marginBottom: 32 },
   contentSection: { flex: 1, minHeight: 200 },
-  contentText: { fontSize: 17, lineHeight: 28, color: "#2D2D2D", letterSpacing: 0.5 },
+  contentText: { fontSize: 17, lineHeight: 28, letterSpacing: 0.5 },
   editInput: {
-    fontSize: 17, lineHeight: 28, color: "#2D2D2D", letterSpacing: 0.5,
-    backgroundColor: "#FFFCF7", borderRadius: 12, padding: 20,
+    fontSize: 17, lineHeight: 28, letterSpacing: 0.5,
+    borderRadius: 12, padding: 20,
     minHeight: 200, textAlignVertical: "top",
-    borderWidth: 1, borderColor: "#F0EDE8",
+    borderWidth: 1,
   },
   editActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 20, gap: 16 },
   cancelButton: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#FFFFFF", borderRadius: 28,
-    alignItems: "center", borderWidth: 1, borderColor: "#F0EDE8",
+    flex: 1, paddingVertical: 14, borderRadius: 28,
+    alignItems: "center", borderWidth: 1,
   },
-  cancelButtonText: { fontSize: 15, color: "#8E8E93", letterSpacing: 1 },
+  cancelButtonText: { fontSize: 15, letterSpacing: 1 },
   saveEditButton: {
-    flex: 1, paddingVertical: 14, backgroundColor: "#F5A623", borderRadius: 28, alignItems: "center",
+    flex: 1, paddingVertical: 14, borderRadius: 28, alignItems: "center",
   },
-  saveEditButtonText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500", letterSpacing: 1 },
-  saveEditButtonDisabled: { backgroundColor: "#F0EDE8" },
-  saveEditButtonTextDisabled: { color: "#B0B0B5" },
+  saveEditButtonText: { fontSize: 15, fontWeight: "500", letterSpacing: 1 },
 
-  /* AI 分析占位区域 */
+  /* AI 分析区域 */
   aiSection: {
-    marginTop: 32, backgroundColor: "#FFF8EE", borderRadius: 16, padding: 20,
-    borderWidth: 1, borderColor: "#F5D9A8",
+    marginTop: 32, borderRadius: 16, padding: 20, borderWidth: 1,
   },
   aiHeader: {
     flexDirection: "row", alignItems: "center", marginBottom: 12,
   },
   aiTitle: {
-    fontSize: 15, fontWeight: "600", color: "#C48A1A", marginLeft: 8, flex: 1,
+    fontSize: 15, fontWeight: "600", marginLeft: 8, flex: 1,
   },
-  aiBadge: {
-    backgroundColor: "#F5D9A8", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3,
-  },
-  aiBadgeText: { fontSize: 11, color: "#C48A1A", fontWeight: "500" },
+  aiRetryBtn: { padding: 4 },
   aiDescription: {
-    fontSize: 14, lineHeight: 22, color: "#8E8E93", marginBottom: 16,
+    fontSize: 14, lineHeight: 22, marginBottom: 16,
   },
-  aiPreviewItems: {
-    flexDirection: "row", justifyContent: "space-around",
+  aiAnalyzeBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    borderRadius: 24, paddingVertical: 12, gap: 8,
   },
-  aiPreviewItem: {
-    flexDirection: "row", alignItems: "center", gap: 6,
+  aiAnalyzeBtnText: { fontSize: 14, fontWeight: "500", letterSpacing: 0.5 },
+  aiResultContainer: {
+    borderLeftWidth: 3, paddingLeft: 14, paddingVertical: 4,
   },
-  aiPreviewText: { fontSize: 13, color: "#C48A1A" },
+  aiResultText: { fontSize: 14, lineHeight: 24, letterSpacing: 0.3 },
+  aiLoadingContainer: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    paddingVertical: 20, gap: 10,
+  },
+  aiLoadingText: { fontSize: 14 },
+  aiErrorText: { fontSize: 13, marginBottom: 12 },
 
-  metaSection: { marginTop: 32, paddingTop: 20, borderTopWidth: 1, borderTopColor: "#F0EDE8" },
-  metaText: { fontSize: 13, color: "#B0B0B5", letterSpacing: 1 },
+  metaSection: { marginTop: 32, paddingTop: 20, borderTopWidth: 1 },
+  metaText: { fontSize: 13, letterSpacing: 1 },
 });
 
 const CARD_WIDTH = SCREEN_WIDTH - 64;
 
 const shareStyles = StyleSheet.create({
   overlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center", alignItems: "center", padding: 32,
+    flex: 1, justifyContent: "center", alignItems: "center", padding: 32,
   },
   modalContent: { width: CARD_WIDTH + 32, alignItems: "center" },
   card: {
@@ -753,7 +825,6 @@ const shareStyles = StyleSheet.create({
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     borderRadius: 28, paddingVertical: 14, gap: 8,
   },
-  actionBtnPrimary: { backgroundColor: "#F5A623" },
   actionBtnPrimaryText: { fontSize: 15, color: "#FFFFFF", fontWeight: "500", letterSpacing: 1 },
   actionBtnSecondary: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#F5D9A8" },
   actionBtnSecondaryText: { fontSize: 15, color: "#F5A623", fontWeight: "500", letterSpacing: 1 },
