@@ -1,5 +1,4 @@
 import "@/global.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -17,8 +16,8 @@ import {
 } from "react-native-safe-area-context";
 import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 
-import { trpc, createTRPCClient } from "@/lib/trpc";
 import { WordLibraryProvider } from "@/lib/word-library-context";
+import { InspirationProvider } from "@/lib/inspiration-context";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -51,20 +50,6 @@ export default function RootLayout() {
     return () => unsubscribe();
   }, [handleSafeAreaUpdate]);
 
-  // Create clients once and reuse them
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            refetchOnWindowFocus: false,
-            retry: 1,
-          },
-        },
-      }),
-  );
-  const [trpcClient] = useState(() => createTRPCClient());
-
   // Ensure minimum 8px padding for top and bottom on mobile
   const providerInitialMetrics = useMemo(() => {
     const metrics = initialWindowMetrics ?? { insets: initialInsets, frame: initialFrame };
@@ -81,8 +66,7 @@ export default function RootLayout() {
   const content = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <WordLibraryProvider>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
+      <InspirationProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="category-detail" options={{ presentation: "card" }} />
@@ -90,11 +74,9 @@ export default function RootLayout() {
             <Stack.Screen name="settings" options={{ presentation: "card" }} />
             <Stack.Screen name="feedback" options={{ presentation: "card" }} />
             <Stack.Screen name="feedback-history" options={{ presentation: "card" }} />
-            <Stack.Screen name="oauth/callback" />
           </Stack>
           <StatusBar style="auto" />
-        </QueryClientProvider>
-      </trpc.Provider>
+      </InspirationProvider>
       </WordLibraryProvider>
     </GestureHandlerRootView>
   );

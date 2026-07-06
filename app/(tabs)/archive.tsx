@@ -9,15 +9,13 @@ import * as Haptics from "expo-haptics";
 import { Swipeable } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
-import { trpc } from "@/lib/trpc";
+import { useInspirations, type LocalInspiration } from "@/lib/inspiration-context";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 
 export default function ArchiveScreen() {
   const router = useRouter();
   const c = useThemeColors();
-  const { data: inspirations = [], isLoading, refetch } = trpc.inspirations.list.useQuery();
-  const { data: stats } = trpc.inspirations.stats.useQuery();
-  const deleteInspiration = trpc.inspirations.delete.useMutation();
+  const { inspirations, loading: isLoading, stats, deleteInspiration } = useInspirations();
 
   const handleCardPress = (id: number) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -27,10 +25,14 @@ export default function ArchiveScreen() {
   const handleDelete = async (id: number, word1: string, word2: string, word3: string) => {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     const confirmDelete = () => {
-      deleteInspiration.mutate({ id }, {
-        onSuccess: () => { refetch(); if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
-        onError: () => { if (Platform.OS === "web") alert("删除失败,请重试"); else Alert.alert("错误", "删除失败,请重试"); },
-      });
+      deleteInspiration(id)
+        .then(() => {
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        })
+        .catch(() => {
+          if (Platform.OS === "web") alert("删除失败,请重试");
+          else Alert.alert("错误", "删除失败,请重试");
+        });
     };
     if (Platform.OS === "web") {
       if (confirm(`确定删除这条灵感？\n${word1} · ${word2} · ${word3}`)) confirmDelete();
@@ -42,7 +44,7 @@ export default function ArchiveScreen() {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     const d = new Date(date);
     return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
@@ -83,7 +85,7 @@ export default function ArchiveScreen() {
     </View>
   );
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = ({ item }: { item: LocalInspiration }) => {
     const summary = item.content.length > 60 ? item.content.slice(0, 60) + "..." : item.content;
     return (
       <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>

@@ -24,6 +24,20 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "server",
+    "drizzle",
+    "drizzle.config.ts",
+    "tests",
+    "__tests__",
+    "lib/trpc.ts",
+    "lib/_core/api.ts",
+    "lib/_core/auth.ts",
+    "hooks/use-auth.ts",
+    "app/oauth/callback.tsx",
+    "components/external-link.tsx",
+    "shared/types.ts",
+    "services/aiConfig.ts",
+    "services/aiService.ts"
   ]
 }

@@ -34,21 +34,21 @@ const RANDOM_WORD_COUNT = 15;
 /**
  * 根据词语长度和容器宽度计算合适的字体大小
  */
-function calcFontSize(text: string): number {
+function calcFontSize(text: string, containerWidth = WORD_CONTAINER_WIDTH, card = false): number {
   if (!text) return 24;
   const len = text.length;
-  const availableWidth = WORD_CONTAINER_WIDTH - 8;
+  const availableWidth = containerWidth - (card ? 36 : 8);
   const maxByWidth = Math.floor(availableWidth / (len * 1.15));
   
   let idealSize: number;
   if (len <= 2) {
-    idealSize = 30;
+    idealSize = card ? 38 : 30;
   } else if (len === 3) {
-    idealSize = 24;
+    idealSize = card ? 34 : 24;
   } else if (len === 4) {
-    idealSize = 20;
+    idealSize = card ? 30 : 20;
   } else {
-    idealSize = 17;
+    idealSize = card ? 24 : 17;
   }
   
   return Math.max(14, Math.min(idealSize, maxByWidth));
@@ -66,15 +66,23 @@ interface WordRollerProps {
   onToggleLock?: () => void;
   /** 是否显示锁图标(仅在stopped状态显示) */
   showLock?: boolean;
+  /** 大卡片模式，用于三词三角阵 */
+  card?: boolean;
+  label?: string;
+  cardWidth?: number;
+  cardHeight?: number;
   /** 主题颜色 */
-  colors?: { foreground: string; primary: string; muted: string; accentDark: string };
+  colors?: { foreground: string; primary: string; muted: string; accentDark: string; cardBg?: string; border?: string };
 }
 
-export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, onToggleLock, showLock, colors }: WordRollerProps) {
+export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, onToggleLock, showLock, card = false, label, cardWidth, cardHeight, colors }: WordRollerProps) {
   const textColor = colors?.foreground ?? "#2D2D2D";
   const lockedColor = colors?.accentDark ?? "#C48A1A";
   const primaryColor = colors?.primary ?? "#F5A623";
   const mutedColor = colors?.muted ?? "#C0C0C5";
+  const width = cardWidth ?? WORD_CONTAINER_WIDTH;
+  const height = cardHeight ?? ITEM_HEIGHT;
+  const itemHeight = card ? height - 50 : ITEM_HEIGHT;
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(1);
   const [rollingWords, setRollingWords] = useState<string[]>([]);
@@ -104,13 +112,13 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
   // 动画控制
   useEffect(() => {
     if (isRolling && rollingWords.length > 0 && !isLocked) {
-      const totalScrollDistance = (rollingWords.length - 1) * ITEM_HEIGHT;
+      const totalScrollDistance = (rollingWords.length - 1) * itemHeight;
 
       translateY.value = 0;
       opacity.value = withTiming(0.7, { duration: 150 });
 
       translateY.value = withSequence(
-        withTiming(-totalScrollDistance + ITEM_HEIGHT, {
+        withTiming(-totalScrollDistance + itemHeight, {
           duration: delay - 400,
           easing: Easing.in(Easing.quad),
         }),
@@ -128,7 +136,7 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
       translateY.value = 0;
       opacity.value = 1;
     }
-  }, [isRolling, rollingWords, isLocked]);
+  }, [isRolling, rollingWords, isLocked, itemHeight]);
 
   // 锁定时直接调用onStop(不需要动画)
   useEffect(() => {
@@ -156,14 +164,22 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
   }));
 
   return (
-    <View style={styles.outerContainer}>
-      <View style={[styles.container, isLocked && showLock && styles.containerLocked]}>
+    <View style={[styles.outerContainer, card && { width }]}>
+      <View style={[
+        styles.container,
+        { width, height },
+        card && [styles.card, { backgroundColor: colors?.cardBg ?? "#FFFFFF", borderColor: colors?.border ?? "#E4E1DA" }],
+        isLocked && showLock && styles.containerLocked,
+      ]}>
+        {card && label ? (
+          <Text style={[styles.cardLabel, { color: lockedColor }]}>{label}</Text>
+        ) : null}
         {!showStatic && rollingWords.length > 0 && !isLocked ? (
           <Animated.View style={[styles.rollingContainer, animatedStyle]}>
             {rollingWords.map((w, index) => (
-              <View key={index} style={styles.wordItem}>
+              <View key={index} style={[styles.wordItem, { height: itemHeight }]}>
                 <Text
-                  style={[styles.word, { fontSize: calcFontSize(w), color: textColor }]}
+                  style={[styles.word, { fontSize: calcFontSize(w, width, card), color: textColor }]}
                   numberOfLines={1}
                   ellipsizeMode="clip"
                 >
@@ -173,12 +189,12 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
             ))}
           </Animated.View>
         ) : (
-          <View style={styles.wordItem}>
+          <View style={[styles.wordItem, { height: itemHeight }]}>
             {word ? (
               <Text
                 style={[
                   styles.word,
-                  { fontSize: calcFontSize(word), color: textColor },
+                  { fontSize: calcFontSize(word, width, card), color: textColor },
                   isLocked && showLock && { color: lockedColor },
                 ]}
                 numberOfLines={1}
@@ -197,6 +213,7 @@ export function WordRoller({ word, isRolling, delay, onStop, words, isLocked, on
           onPress={handleLockPress}
           style={({ pressed }) => [
             styles.lockButton,
+            card && styles.cardLockButton,
             pressed && { opacity: 0.5 },
           ]}
           hitSlop={12}
@@ -222,6 +239,19 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+  },
+  card: {
+    borderWidth: 1,
+    borderRadius: 24,
+    paddingTop: 34,
+  },
+  cardLabel: {
+    position: "absolute",
+    left: 18,
+    top: 15,
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 0.8,
   },
   containerLocked: {
     // 锁定时的轻微视觉变化
@@ -249,5 +279,12 @@ const styles = StyleSheet.create({
   lockButton: {
     marginTop: 4,
     padding: 4,
+  },
+  cardLockButton: {
+    position: "absolute",
+    right: 12,
+    top: 10,
+    marginTop: 0,
+    padding: 8,
   },
 });

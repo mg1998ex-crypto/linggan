@@ -1,7 +1,7 @@
 /**
  * 灵感详情页面
  * 查看、编辑、删除、分享灵感记录
- * AI创意分析功能（调用用户配置的LLM API）
+ * 将专业分析提示词发送给用户自己的 AI 应用
  * 
  * 分享功能:
  * - Web端: Canvas绘制卡片 → 下载PNG图片 / 复制文字
@@ -17,9 +17,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
-import { trpc } from "@/lib/trpc";
+import { useInspirations } from "@/lib/inspiration-context";
 import { useThemeColors } from "@/hooks/use-theme-colors";
-import { analyzeInspiration, isAIServiceAvailable } from "@/services/aiService";
+import { buildAIAnalysisPrompt, sendPromptToAI } from "@/services/aiHandoff";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -90,35 +90,18 @@ export default function InspirationDetailScreen() {
   const [isSharing, setIsSharing] = useState(false);
   const shareCardRef = useRef<any>(null);
 
-  // AI 分析状态
-  const [aiResult, setAiResult] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [aiAvailable, setAiAvailable] = useState(false);
+  const [isSendingToAI, setIsSendingToAI] = useState(false);
 
-  const { data: inspiration, isLoading, refetch } = trpc.inspirations.getById.useQuery(
-    { id: inspirationId },
-    { enabled: !!inspirationId }
-  );
-  const updateInspiration = trpc.inspirations.update.useMutation();
-  const deleteInspiration = trpc.inspirations.delete.useMutation();
+  const { loading: isLoading, getInspiration, updateInspiration, deleteInspiration } = useInspirations();
+  const inspiration = getInspiration(inspirationId);
 
   useEffect(() => {
     if (inspiration) {
       setEditContent(inspiration.content);
-      // 如果已有 AI 分析结果，显示它
-      if ((inspiration as any).aiAnalysis) {
-        setAiResult((inspiration as any).aiAnalysis);
-      }
     }
   }, [inspiration]);
 
-  // 检查 AI 服务是否可用
-  useEffect(() => {
-    isAIServiceAvailable().then(setAiAvailable);
-  }, []);
-
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     const d = new Date(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -128,7 +111,7 @@ export default function InspirationDetailScreen() {
     return `${year}年${month}月${day}日 ${hour}:${minute}`;
   };
 
-  const formatShareDate = (date: Date) => {
+  const formatShareDate = (date: Date | string) => {
     const d = new Date(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -152,9 +135,8 @@ export default function InspirationDetailScreen() {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Keyboard.dismiss();
     try {
-      await updateInspiration.mutateAsync({ id: inspirationId, content: editContent.trim() });
+      await updateInspiration(inspirationId, editContent.trim());
       setIsEditing(false);
-      refetch();
       if (Platform.OS !== "web") Alert.alert("", "修改已保存");
     } catch (e) {
       const msg = "保存失败,请重试";
@@ -167,7 +149,7 @@ export default function InspirationDetailScreen() {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     const confirmDelete = async () => {
       try {
-        await deleteInspiration.mutateAsync({ id: inspirationId });
+        await deleteInspiration(inspirationId);
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.back();
       } catch (e) {
@@ -191,54 +173,26 @@ export default function InspirationDetailScreen() {
     setShowShareCard(true);
   };
 
-  // ===== AI 分析 =====
-  const handleAIAnalyze = async () => {
+  // ===== 交给用户自己的 AI 分析（不使用内置 API，不产生平台费用） =====
+  const handleSendToAI = async () => {
     if (!inspiration) return;
-
-    if (!aiAvailable) {
-      const msg = "请先在设置中配置 AI 服务的 API Key";
-      if (Platform.OS === "web") {
-        if (confirm(msg + "\n\n是否前往设置？")) {
-          router.push("/settings");
-        }
-      } else {
-        Alert.alert("未配置 AI 服务", msg, [
-          { text: "取消", style: "cancel" },
-          { text: "前往设置", onPress: () => router.push("/settings") },
-        ]);
-      }
-      return;
-    }
-
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setAiLoading(true);
-    setAiError(null);
-
+    setIsSendingToAI(true);
     try {
-      const result = await analyzeInspiration(
+      const prompt = buildAIAnalysisPrompt(
         [inspiration.word1, inspiration.word2, inspiration.word3],
-        inspiration.content
+        inspiration.content,
       );
-      setAiResult(result);
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // 尝试保存到数据库
-      try {
-        await updateInspiration.mutateAsync({
-          id: inspirationId,
-          content: inspiration.content,
-          aiAnalysis: result,
-        });
-        refetch();
-      } catch { /* 保存失败不影响显示 */ }
-    } catch (e: any) {
-      if (e.message === "NO_API_KEY") {
-        setAiError("请先在设置中配置 AI 服务的 API Key");
-      } else {
-        setAiError(e.message || "AI 分析失败，请重试");
+      const result = await sendPromptToAI(prompt);
+      if (result === "copied") alert("分析提示词已复制，请粘贴到你常用的 AI 中");
+    } catch (error: any) {
+      if (error?.message !== "Share canceled" && error?.message !== "User canceled") {
+        const message = "发送失败，请稍后重试";
+        if (Platform.OS === "web") alert(message);
+        else Alert.alert("提示", message);
       }
     } finally {
-      setAiLoading(false);
+      setIsSendingToAI(false);
     }
   };
 
@@ -253,7 +207,10 @@ export default function InspirationDetailScreen() {
       const padding = 48;
       const contentWidth = cardWidth - padding * 2;
 
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("当前浏览器不支持图片生成");
+      }
       canvas.width = cardWidth * scale;
       canvas.height = 1200 * scale;
       ctx.scale(scale, scale);
@@ -371,6 +328,8 @@ export default function InspirationDetailScreen() {
         if (status === "granted") {
           await MediaLibrary.saveToLibraryAsync(uri);
           Alert.alert("", "图片已保存到相册");
+        } else {
+          Alert.alert("无法保存图片", "请在系统设置中允许“灵感”访问相册后重试。");
         }
       }
     } catch (e) {
@@ -394,6 +353,8 @@ export default function InspirationDetailScreen() {
           await MediaLibrary.saveToLibraryAsync(uri);
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert("", "图片已保存到相册");
+        } else {
+          Alert.alert("无法保存图片", "请在系统设置中允许“灵感”访问相册后重试。");
         }
       }
     } catch (e) {
@@ -547,70 +508,33 @@ export default function InspirationDetailScreen() {
           )}
         </View>
 
-        {/* AI 创意分析区域 */}
+        {/* 将提示词发送给用户自己的 AI */}
         {!isEditing && (
           <View style={[styles.aiSection, { backgroundColor: c.accentLight, borderColor: c.isDark ? c.border : "#F5D9A8" }]}>
             <View style={styles.aiHeader}>
               <MaterialIcons name="auto-awesome" size={18} color={c.primary} />
-              <Text style={[styles.aiTitle, { color: c.accentDark }]}>AI 创意分析</Text>
-              {aiResult && !aiLoading && (
-                <Pressable
-                  onPress={handleAIAnalyze}
-                  style={({ pressed }) => [styles.aiRetryBtn, pressed && { opacity: 0.7 }]}
-                >
-                  <MaterialIcons name="refresh" size={16} color={c.primary} />
-                </Pressable>
-              )}
+              <Text style={[styles.aiTitle, { color: c.accentDark }]}>用 AI 深化这条灵感</Text>
             </View>
-
-            {aiResult ? (
-              /* 显示 AI 分析结果 */
-              <View style={[styles.aiResultContainer, { borderLeftColor: c.primary }]}>
-                <Text style={[styles.aiResultText, { color: c.foreground }]}>{aiResult}</Text>
-              </View>
-            ) : aiLoading ? (
-              /* 加载中 */
-              <View style={styles.aiLoadingContainer}>
-                <ActivityIndicator size="small" color={c.primary} />
-                <Text style={[styles.aiLoadingText, { color: c.muted }]}>AI 正在分析你的灵感...</Text>
-              </View>
-            ) : aiError ? (
-              /* 错误提示 */
-              <View>
-                <Text style={[styles.aiErrorText, { color: c.error }]}>{aiError}</Text>
-                <Pressable
-                  onPress={handleAIAnalyze}
-                  style={({ pressed }) => [
-                    styles.aiAnalyzeBtn,
-                    { backgroundColor: c.primary },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <MaterialIcons name="refresh" size={16} color={c.isDark ? "#1C1C1E" : "#FFFFFF"} />
-                  <Text style={[styles.aiAnalyzeBtnText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>重试</Text>
-                </Pressable>
-              </View>
-            ) : (
-              /* 初始状态 - 分析按钮 */
-              <View>
-                <Text style={[styles.aiDescription, { color: c.muted }]}>
-                  AI 将为你的灵感提供创意解读、评分和延伸思考方向。
-                </Text>
-                <Pressable
-                  onPress={handleAIAnalyze}
-                  style={({ pressed }) => [
-                    styles.aiAnalyzeBtn,
-                    { backgroundColor: c.primary },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <MaterialIcons name="auto-awesome" size={16} color={c.isDark ? "#1C1C1E" : "#FFFFFF"} />
-                  <Text style={[styles.aiAnalyzeBtnText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-                    {aiAvailable ? "开始分析" : "配置 AI 后使用"}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
+            <Text style={[styles.aiDescription, { color: c.muted }]}>
+              自动整理专业分析提示词，并发送到你已经在使用的 ChatGPT、DeepSeek、通义千问或其他 AI。灵感不会索取你的 API Key。
+            </Text>
+            <Pressable
+              onPress={handleSendToAI}
+              disabled={isSendingToAI}
+              style={({ pressed }) => [
+                styles.aiAnalyzeBtn,
+                { backgroundColor: c.primary },
+                isSendingToAI && { opacity: 0.6 },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              {isSendingToAI ? (
+                <ActivityIndicator size="small" color={c.isDark ? "#1C1C1E" : "#FFFFFF"} />
+              ) : (
+                <MaterialIcons name="send" size={16} color={c.isDark ? "#1C1C1E" : "#FFFFFF"} />
+              )}
+              <Text style={[styles.aiAnalyzeBtnText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>发送给 AI</Text>
+            </Pressable>
           </View>
         )}
 
