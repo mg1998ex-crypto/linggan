@@ -25,6 +25,10 @@ document.querySelectorAll("[data-open-login]").forEach((button) => {
 
 document.querySelectorAll("[data-download]").forEach((button) => {
   button.addEventListener("click", () => {
+    if (button.dataset.url) {
+      window.location.href = button.dataset.url;
+      return;
+    }
     const platform = button.dataset.download === "ios" ? "iPhone TestFlight" : "Android";
     showNotice(`${platform} 版本正在准备`, "安装包通过第一轮内部测试后，这个按钮会替换为真实下载链接。" );
   });
