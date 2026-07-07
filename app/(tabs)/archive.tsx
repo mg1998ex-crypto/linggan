@@ -56,7 +56,7 @@ export default function ArchiveScreen() {
   );
 
   const renderHeader = () => (
-    <View>
+    <View style={styles.statsHeader}>
       {stats && (
         <View style={[styles.statsPanel, { backgroundColor: c.accentLight, borderColor: c.isDark ? c.border : "#F5D9A8" }]}>
           <View style={styles.statsRow}>
@@ -142,7 +142,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24, paddingTop: 60 },
   header: { alignItems: "center", marginBottom: 24 },
   title: { fontSize: 32, fontWeight: "300", letterSpacing: 8 },
-  statsPanel: { borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1 },
+  statsHeader: { width: "100%" },
+  statsPanel: { width: "100%", borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1 },
   statsRow: { flexDirection: "row", justifyContent: "space-around", alignItems: "center" },
   statItem: { alignItems: "center", flex: 1 },
   statNumber: { fontSize: 28, fontWeight: "300", letterSpacing: 1 },
@@ -156,7 +157,7 @@ const styles = StyleSheet.create({
   cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   date: { fontSize: 12 },
   viewHint: { fontSize: 12, letterSpacing: 0.5 },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 40 },
+  emptyContainer: { flex: 1, width: "100%", justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
   emptyText: { fontSize: 18, marginBottom: 12 },
   emptyHint: { fontSize: 14 },
   deleteButton: { justifyContent: "center", alignItems: "center", width: 80, borderRadius: 12, marginBottom: 16 },

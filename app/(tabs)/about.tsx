@@ -41,22 +41,22 @@ export default function AboutScreen() {
             onPress={() => router.push("/settings" as any)}
             style={({ pressed }) => [styles.quickActionItem, pressed && { opacity: 0.7 }]}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: c.accentLight }]}>
-              <MaterialIcons name="settings" size={20} color={c.primary} />
+            <View style={styles.quickActionIcon}>
+              <MaterialIcons name="tune" size={22} color={c.foreground} />
             </View>
             <Text style={[styles.quickActionText, { color: c.foreground }]}>设置</Text>
-            <MaterialIcons name="chevron-right" size={20} color={c.muted} />
+            <MaterialIcons name="arrow-forward-ios" size={15} color={c.muted} />
           </Pressable>
           <View style={[styles.quickActionDivider, { backgroundColor: c.border }]} />
           <Pressable
             onPress={() => router.push("/feedback" as any)}
             style={({ pressed }) => [styles.quickActionItem, pressed && { opacity: 0.7 }]}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: c.accentLight }]}>
-              <MaterialIcons name="feedback" size={20} color={c.primary} />
+            <View style={styles.quickActionIcon}>
+              <MaterialIcons name="chat-bubble-outline" size={21} color={c.foreground} />
             </View>
             <Text style={[styles.quickActionText, { color: c.foreground }]}>意见反馈</Text>
-            <MaterialIcons name="chevron-right" size={20} color={c.muted} />
+            <MaterialIcons name="arrow-forward-ios" size={15} color={c.muted} />
           </Pressable>
         </View>
 
@@ -122,15 +122,15 @@ const styles = StyleSheet.create({
   appName: { fontSize: 42, fontWeight: "200", letterSpacing: 16 },
   version: { fontSize: 14, marginTop: 12, letterSpacing: 2 },
 
-  quickActions: { borderRadius: 14, marginBottom: 36, borderWidth: 1, overflow: "hidden" },
+  quickActions: { borderRadius: 20, marginBottom: 40, borderWidth: 1, overflow: "hidden" },
   quickActionItem: {
-    flexDirection: "row", alignItems: "center", paddingVertical: 16, paddingHorizontal: 20,
+    flexDirection: "row", alignItems: "center", minHeight: 64, paddingVertical: 14, paddingHorizontal: 20,
   },
   quickActionIcon: {
-    width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center",
+    width: 28, height: 36, justifyContent: "center", alignItems: "flex-start",
   },
-  quickActionText: { flex: 1, fontSize: 16, marginLeft: 14, fontWeight: "400" },
-  quickActionDivider: { height: 1, marginLeft: 70 },
+  quickActionText: { flex: 1, fontSize: 16, marginLeft: 12, fontWeight: "500" },
+  quickActionDivider: { height: 1, marginLeft: 60 },
 
   section: { marginBottom: 36 },
   sectionTitle: { fontSize: 18, fontWeight: "500", letterSpacing: 2, marginBottom: 20 },
