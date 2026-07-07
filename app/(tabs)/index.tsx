@@ -300,13 +300,13 @@ export default function HomeScreen() {
               <Text style={[styles.idleSubtitle, { color: c.muted }]}>五分钟，写下你的第一直觉</Text>
               <Pressable
                 onPress={handleStart}
-                style={({ pressed }) => [
+                android_ripple={{ color: "rgba(255,255,255,0.18)" }}
+                style={[
                   styles.startButton,
                   { backgroundColor: c.primary, borderColor: c.primary },
-                  pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] },
                 ]}
               >
-                <Text style={[styles.startButtonText, { color: c.isDark ? "#1C1C1E" : "#FFFFFF" }]}>生成三个词</Text>
+                <Text style={styles.startButtonText}>开始 · 生成三个词</Text>
               </Pressable>
 
               <View style={styles.idleDiagram}>
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
   startButton: {
     width: "100%", marginTop: 20, paddingVertical: 17, borderRadius: 32, borderWidth: 1, alignItems: "center",
   },
-  startButtonText: { fontSize: 17, fontWeight: "600", letterSpacing: 2 },
+  startButtonText: { color: "#FFFFFF", fontSize: 17, fontWeight: "700", letterSpacing: 1.5 },
 
   customWordLink: {
     flexDirection: "row", alignItems: "center", marginTop: 18, paddingVertical: 10, paddingHorizontal: 20,
