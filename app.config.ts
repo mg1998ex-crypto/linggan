@@ -32,6 +32,7 @@ const env = {
 };
 
 const config: ExpoConfig = {
+  owner: "aufblack",
   name: env.appName,
   slug: env.appSlug,
   version: "1.0.0",
@@ -92,6 +93,11 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  extra: {
+    eas: {
+      projectId: "72a48c6d-07d9-41a4-837e-ec2862b52fe6",
+    },
   },
 };
 
