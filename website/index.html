@@ -1,33 +1,218 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0a0b"><meta name="description" content="灵感——用三个随机词，打开一个意想不到的方向。"><title>灵感｜三个词，一条未走过的路</title><link rel="stylesheet" href="./styles.css"></head>
-<body><style>.nav .brand{color:#f2f0eb}.brand img{width:28px;height:28px;border-radius:8px;object-fit:cover}.hero-brand{display:flex;align-items:center;gap:16px;margin-bottom:28px}.hero-brand img{width:64px;height:64px;border-radius:17px}.hero-brand div{display:flex;flex-direction:column;text-align:left}.hero-brand b{font-size:27px}.hero-brand small{margin-top:3px;color:#777;font-size:9px;letter-spacing:.22em}</style>
-<nav class="nav"><div class="nav-inner"><a class="brand" href="#top"><img src="./assets/icon-brand-v1.png" alt="">灵感</a><div class="nav-links"><a href="#origin">方法原点</a><a href="#practice">开始创造</a><a href="#download">下载</a></div><button class="login" data-open-login>登录</button></div></nav>
-<main id="top">
-  <section class="hero dark">
-    <div class="hero-grid"><div class="hero-copy reveal"><div class="hero-brand"><img src="./assets/icon-brand-v1.png" alt="灵感 App 图标"><div><b>灵感</b><small>LINGGAN</small></div></div><p class="kicker">RANDOM × CONNECTION × ACTION</p><h1>三个词，<br>一条<span>未走过</span>的路。</h1><p class="lead">真正的新想法，很少从熟悉的答案里长出来。<br>打乱词语，迫使大脑跨过原来的边界。</p><div class="actions"><a class="primary" href="#practice">开始一次组合</a><a class="ghost" href="#origin">读这个方法的故事 ↘</a></div></div>
-      <div class="orbit reveal" aria-label="三个随机词组成新的连接"><div class="ring r1"></div><div class="ring r2"></div><span class="word w1">AI 眼镜</span><span class="word w2">独居老人</span><span class="word w3">药盒</span><div class="core"><b>?</b><small>NEW<br>IDEA</small></div><svg viewBox="0 0 500 500"><path d="M250 250 L150 118 M250 250 L96 365 M250 250 L408 352"/></svg></div>
-    </div><div class="scroll-mark">向下探索 <span>↓</span></div>
-  </section>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f3ed">
+  <meta name="description" content="灵感——在平凡中发现特别。">
+  <title>灵感｜在平凡中发现特别</title>
+  <link rel="icon" href="./assets/icon-brand-v1.png">
+  <link rel="stylesheet" href="./styles.css?v=16">
+</head>
+<body>
+  <nav class="nav" aria-label="主导航">
+    <div class="nav-inner">
+      <a class="brand" href="#top" aria-label="灵感首页">
+        <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+          <rect width="48" height="48" rx="14" fill="#fffdf8"/>
+          <path d="M17.5 28.5c-2.8-2-4.5-5.2-4.5-8.6C13 13.9 17.9 9 24 9s11 4.9 11 10.9c0 3.5-1.7 6.6-4.5 8.6-1.4 1-2.1 2-2.4 3.5h-8.2c-.3-1.5-1-2.5-2.4-3.5Z" fill="none" stroke="#2b2a27" stroke-width="1.6"/>
+          <path d="M20 35h8M21.5 38h5" stroke="#2b2a27" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="20" cy="21" r="2.2" fill="#4e8f87"/>
+          <path d="M24 17.5 27 23h-6l3-5.5Z" fill="#e6a42b"/>
+          <rect x="26.4" y="21" width="4.2" height="4.2" rx=".7" fill="#cb6a55"/>
+        </svg>
+        <span>灵感</span>
+      </a>
+      <div class="nav-links">
+        <a href="#experience">产品</a>
+        <a href="#origin">起源故事</a>
+        <a href="#download">下载</a>
+      </div>
+      <a class="nav-download" href="#download">下载</a>
+    </div>
+  </nav>
 
-  <section class="manifesto"><p class="reveal">我们不是缺少想法。</p><h2 class="reveal">我们只是太习惯<br>沿着同一条路思考。</h2><div class="manifesto-line reveal"><span></span><p>随机不是混乱。<br>随机是离开惯性的入口。</p></div></section>
+  <main id="top">
+    <section class="brand-intro" aria-label="灵感品牌主张">
+      <div class="intro-glow" aria-hidden="true"></div>
+      <div class="intro-shapes" aria-hidden="true"><span><i></i></span><span><i></i></span><span><i></i></span></div>
+      <div class="intro-flash" aria-hidden="true"></div>
+      <div class="intro-copy">
+        <h1><span>在平凡中</span><strong>发现特别</strong></h1>
+      </div>
+      <a class="intro-scroll" href="#product-intro">向下了解灵感 <span>↓</span></a>
+    </section>
 
-  <section class="origin" id="origin"><div class="origin-sticky"><p class="index">01 / 方法原点</p><h2>每天，<br>逼自己发明<br>一件东西。</h2><p>孙正义在加州大学伯克利分校求学时期，曾给自己设下一项练习：用随机词语的组合持续构思发明。</p></div><div class="story">
-    <article class="story-card reveal"><span>一叠词卡</span><h3>先把名词写下来。</h3><p>橘子、钉子、收音机……词语不需要彼此相关。越不相干，越有机会让思维离开旧轨道。</p><b>WORDS</b></article>
-    <article class="story-card red reveal"><span>一次抽三个</span><h3>再迫使它们发生关系。</h3><p>不是等待“好点子”降临，而是把三个随机对象放在一起，追问它们能否成为一种新的产品或功能。</p><b>3×</b></article>
-    <article class="story-card reveal"><span>从想法到判断</span><h3>创意之后，还要筛选。</h3><p>新颖只是起点。真正值得保留的灵感，还需要经过需求、可行性和价值的检验。</p><b>WHY?</b></article>
-    <p class="source-note reveal">“随机三词”故事据孙正义相关传记资料整理；本产品是对这一创造练习的当代转译，并非软银官方产品。</p>
-  </div></section>
+    <section class="hero" id="product-intro">
+      <div class="hero-copy reveal">
+        <h2 class="hero-title"><span class="title-line">三个词</span><span class="title-line accent-line">组合出一个新点子</span></h2>
+        <p class="hero-lead">灵感是一款主动产生创意的思维训练工具。它随机给出三个词，让你用五分钟把它们组合成新的产品、故事或解决方案。</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/mg1998ex-crypto/linggan/releases/download/v1.0.0-rc.1/linggan-android-rc1.apk">下载 Android</a>
+          <a class="text-link" href="#experience">看看它怎样工作 <span>↓</span></a>
+        </div>
+        <p class="availability"><i></i> Android 1.0.0 RC1 可下载 · GitHub Releases 稳定托管 · iPhone 版准备中</p>
+      </div>
 
-  <section class="quote dark"><div class="quote-number">“</div><blockquote class="reveal">我们相信，<br><em>持续进化</em>是最强大的竞争优势。</blockquote><p class="reveal">— 孙正义，软银集团公开理念资料</p><a class="source-link" href="https://group.softbank/en/philosophy/happiness-empowered-ai/global" target="_blank" rel="noreferrer">查看来源 ↗</a></section>
+      <div class="hero-visual reveal" aria-label="三个事物连接后点亮一枚灯泡">
+        <div class="halo halo-a"></div>
+        <div class="halo halo-b"></div>
+        <span class="floating-word word-a">AI 眼镜</span>
+        <span class="floating-word word-b">独居老人</span>
+        <span class="floating-word word-c">药盒</span>
+        <svg class="bulb" viewBox="0 0 460 520" role="img" aria-label="由圆形、三角形和方形组成灯芯的发光灯泡">
+          <defs>
+            <radialGradient id="warmGlow">
+              <stop offset="0" stop-color="#ffd983" stop-opacity=".85"/>
+              <stop offset=".55" stop-color="#f4aa2b" stop-opacity=".23"/>
+              <stop offset="1" stop-color="#f4aa2b" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="11"/>
+            </filter>
+          </defs>
+          <circle cx="230" cy="221" r="205" fill="url(#warmGlow)"/>
+          <circle cx="230" cy="221" r="92" fill="#ffc14e" opacity=".22" filter="url(#softGlow)"/>
+          <path class="bulb-outline" d="M145 252c-25-24-40-58-40-96C105 87 161 31 230 31s125 56 125 125c0 38-15 72-40 96-20 19-29 36-31 65H176c-2-29-11-46-31-65Z"/>
+          <path class="bulb-line" d="M175 341h110M184 369h92M199 397h62"/>
+          <path class="bulb-line thin" d="M178 318c1-43 18-70 52-82M282 318c-1-43-18-70-52-82"/>
+          <g class="filament-shapes">
+            <circle cx="205" cy="203" r="15" fill="#4e8f87"/>
+            <path d="M235 174 263 225h-56l28-51Z" fill="#edae36"/>
+            <rect x="247" y="207" width="31" height="31" rx="5" fill="#cb6a55"/>
+          </g>
+          <circle cx="230" cy="210" r="5" fill="#fff7d7"/>
+        </svg>
+        <p class="visual-note">三个词<br>一个新的组合</p>
+      </div>
+    </section>
 
-  <section class="practice" id="practice"><header class="reveal"><p class="index">02 / 把方法装进口袋</p><h2>不用等。<br>现在就开始。</h2></header>
-    <div class="phone-layout"><div class="phone-wrap reveal"><div class="glow"></div><div class="phone"><div class="status"><b>9:41</b><i></i><span>•••</span></div><div class="app-title"><div><b>灵感</b><small>随机组合，强制关联</small></div><em>三词组合法</em></div><div class="meta"><span>全部词库⌄</span><strong>4:52</strong></div><div class="cards"><article class="c1"><small>随机词 01</small><b>AI眼镜</b></article><article class="c2"><small>随机词 02</small><b>独居老人</b></article><article class="c3"><small>随机词 03</small><b>药盒</b></article><i class="hub"></i></div><div class="prompt"><b>让不相关的词发生关系</b><small>先写下第一直觉，不必急着让它合理。</small></div><button>保存这条灵感</button></div></div>
-      <div class="practice-copy"><article class="reveal"><span>01</span><div><h3>随机</h3><p>抽取三个词，让问题脱离原来的语境。</p></div></article><article class="reveal"><span>02</span><div><h3>连接</h3><p>五分钟内写下第一直觉，不急着证明它正确。</p></div></article><article class="reveal"><span>03</span><div><h3>行动</h3><p>保存、复盘，再交给你自己的 AI 做结构化分析。</p></div></article></div>
-    </div></section>
+    <section class="encounter" id="experience">
+      <header class="section-heading reveal">
+        <p class="section-index">01 / 一次连接</p>
+        <h2><span class="title-line">已有的事物</span><span class="title-line">组合成新的东西</span></h2>
+      </header>
+      <div class="connection-stage reveal">
+        <svg class="connection-lines" aria-hidden="true">
+          <line class="line-main" x1="50%" y1="150" x2="50%" y2="280" />
+          <line class="line-main" x1="27.7%" y1="335" x2="50%" y2="280" />
+          <line class="line-main" x1="72.3%" y1="335" x2="50%" y2="280" />
+        </svg>
+        <div class="connection-tech" aria-hidden="true">
+          <span class="tech-ring tech-ring-a"></span>
+          <span class="tech-ring tech-ring-b"></span>
+          <span class="tech-ring tech-ring-c"></span>
+          <i class="tech-ray tech-ray-a"><b></b></i>
+          <i class="tech-ray tech-ray-b"><b></b></i>
+          <i class="tech-ray tech-ray-c"><b></b></i>
+          <i class="tech-ray tech-ray-d"><b></b></i>
+          <i class="tech-ray tech-ray-e"><b></b></i>
+          <i class="tech-ray tech-ray-f"><b></b></i>
+          <i class="tech-ray tech-ray-g"></i>
+          <i class="tech-ray tech-ray-h"><b></b></i>
+          <i class="tech-ray tech-ray-i"></i>
+          <i class="tech-ray tech-ray-j"><b></b></i>
+          <i class="tech-ray tech-ray-k"></i>
+          <i class="tech-ray tech-ray-l"><b></b></i>
+          <i class="tech-ray tech-ray-m"></i>
+          <i class="tech-ray tech-ray-n"><b></b></i>
+          <i class="tech-ray tech-ray-o"></i>
+          <i class="tech-ray tech-ray-p"><b></b></i>
+          <i class="tech-ray tech-ray-q"></i>
+          <i class="tech-ray tech-ray-r"><b></b></i>
+          <i class="tech-ray tech-ray-s"></i>
+          <i class="tech-ray tech-ray-t"><b></b></i>
+          <i class="tech-ray tech-ray-u"></i>
+        </div>
+        <article class="word-card card-one"><small>词语 01</small><strong>AI 眼镜</strong><p>科技 · 入口</p></article>
+        <article class="word-card card-two"><small>词语 02</small><strong>独居老人</strong><p>生活 · 需要</p></article>
+        <article class="word-card card-three"><small>词语 03</small><strong>药盒</strong><p>物件 · 落点</p></article>
+        <div class="connection-core" aria-hidden="true"><i></i></div>
+        <article class="result-card">
+          <small>一个刚刚出现的方向</small>
+          <strong>智能服药陪伴设备</strong>
+          <p>提醒、识别与陪伴，在一次连接里相遇。</p>
+        </article>
+      </div>
+    </section>
 
-  <section class="values"><div class="values-head reveal"><p class="index">03 / 不止是灵感</p><h2>想得更远。<br>动得更快。</h2><p>从孙正义公开倡导的行动文化中，我们选取三个与创造最有关的词。</p></div><div class="value-row"><article class="reveal"><span>逆算</span><h3>先看见目的地，<br>再决定今天做什么。</h3></article><article class="reveal"><span>速度</span><h3>不等完美，<br>先让想法接受现实。</h3></article><article class="reveal"><span>执念</span><h3>不是重复用力，<br>是继续寻找可能。</h3></article></div><a class="source-link dark-link" href="https://group.softbank/en/philosophy/value" target="_blank" rel="noreferrer">阅读软银集团价值观原文 ↗</a></section>
+    <section class="product" id="method">
+      <div class="phone-scene reveal">
+        <div class="phone-glow"></div>
+        <figure class="phone-real" aria-label="灵感 App 已确认的真实主界面">
+          <img src="./assets/app-ui-final.png" alt="灵感 App 主界面：AI眼镜、独居老人和药盒组成三词联想" />
+        </figure>
+      </div>
+      <div class="product-copy reveal">
+        <p class="section-index">02 / 装进口袋</p>
+        <h2><span class="title-line">五分钟</span><span class="title-line">完成一次三词练习</span></h2>
+        <div class="feature-list">
+          <article><span>01</span><div><h3>观察</h3><p>看着屏幕上的三个词，先不要判断它们是否合理。</p></div></article>
+          <article><span>02</span><div><h3>联想</h3><p>想象它们如何组合成新的产品、故事或解决方案。</p></div></article>
+          <article><span>03</span><div><h3>记录</h3><p>写下你的第一直觉，把三个词和点子一起保存。</p></div></article>
+        </div>
+        <p class="privacy-note"><i>✓</i> 无需注册即可开始 · 核心内容保存在本机</p>
+      </div>
+    </section>
 
-  <section class="download dark" id="download"><div class="download-inner reveal"><p class="kicker">LINGGAN FOR MOBILE</p><h2>下一次灵感，<br>从三个词开始。</h2><p>Android 正式候选版 RC1 已开放真机验收；iPhone 版将在 TestFlight 准备完成后开放。</p><div class="stores"><button data-download="ios"><i>●</i><span><small>正在准备</small><b>iPhone 测试版</b></span></button><button data-download="android" data-url="https://expo.dev/artifacts/eas/OjJ3LW61yj9_OZ03iXu5SJvG2ora9kvWvEas0h57Zq8.apk"><i>▶</i><span><small>Expo 直连下载 · RC1</small><b>Android 候选版</b></span></button></div></div></section>
-</main>
-<footer><a class="brand" href="#top"><img src="./assets/icon-brand-v1.png" alt="">灵感</a><p>随机组合，强制关联。</p><div><a href="./privacy.html">隐私政策</a><a href="./terms.html">用户协议</a><a href="https://github.com/mg1998ex-crypto/linggan">GitHub</a></div><small>© 2026 灵感 · 非软银集团官方产品</small></footer>
-<dialog id="notice-dialog"><button class="dialog-close" aria-label="关闭">×</button><span class="dialog-symbol">✦</span><h2 id="dialog-title">正在准备</h2><p id="dialog-copy">功能将在后续版本开放。</p><button class="primary dialog-confirm">知道了</button></dialog><script src="./script.js"></script>
-</body></html>
+    <section class="origin" id="origin">
+      <div class="origin-story reveal">
+        <p class="section-index">03 / 起源故事</p>
+        <h2><span class="title-line story-money">1亿日元</span><span class="title-line">从三个词开始</span></h2>
+        <p class="story-opening">1976年，一台会说话的电子翻译机被夏普看中。它带来的约100万美元，后来成为一位年轻人创业的起点。</p>
+        <p class="story-turn">但做出它的人，不是一家公司。</p>
+      </div>
+      <article class="origin-card reveal">
+        <span>把时间拨回故事开始的地方</span>
+        <h3>那时的孙正义<br>只是伯克利的一名19岁学生</h3>
+        <p>为了寻找能够赚钱的发明，他给自己定下一项练习，并把它坚持了整整一年。</p>
+        <blockquote>每天花5分钟，从字典里随机挑出三个名词，想办法把它们组合成一个新发明。</blockquote>
+        <div class="story-words"><i>字典</i><i>声音合成器</i><i>计算机</i></div>
+        <div class="story-equation"><span>三个词</span><b>→</b><strong>会说话的电子翻译机</strong></div>
+      </article>
+      <div class="story-ending reveal">
+        <p>他找到教授和工程师做出原型，带回日本寻找买家。夏普最终买下这项技术。</p>
+        <strong>五年后，他创办了 SoftBank</strong>
+        <p>故事的起点，不是一间办公室，而是每天五分钟和三个词。</p>
+        <small>资料参考：SoftBank Group 2018 CEO Message、1996年美联社人物报道及《灵感APP背景介绍》</small>
+      </div>
+    </section>
+
+    <section class="download" id="download">
+      <div class="download-glow" aria-hidden="true"></div>
+      <div class="download-copy reveal">
+        <svg class="download-mark" viewBox="0 0 48 48" aria-hidden="true">
+          <rect width="48" height="48" rx="14" fill="#fffaf0"/>
+          <path d="M17.5 28.5c-2.8-2-4.5-5.2-4.5-8.6C13 13.9 17.9 9 24 9s11 4.9 11 10.9c0 3.5-1.7 6.6-4.5 8.6-1.4 1-2.1 2-2.4 3.5h-8.2c-.3-1.5-1-2.5-2.4-3.5Z" fill="none" stroke="#2b2a27" stroke-width="1.6"/>
+          <circle cx="20" cy="21" r="2.2" fill="#4e8f87"/><path d="M24 17.5 27 23h-6l3-5.5Z" fill="#e6a42b"/><rect x="26.4" y="21" width="4.2" height="4.2" rx=".7" fill="#cb6a55"/>
+        </svg>
+        <p class="eyebrow">灵感移动版</p>
+        <h2><span class="title-line">让每个人都有一双</span><span class="title-line">发现惊喜的眼睛</span></h2>
+        <p>无需注册，打开灵感就可以开始。</p>
+        <div class="download-buttons">
+          <a class="store-button active" href="https://github.com/mg1998ex-crypto/linggan/releases/download/v1.0.0-rc.1/linggan-android-rc1.apk">
+            <i>▶</i><span><small>GitHub Release · RC1</small><b>下载 Android</b></span>
+          </a>
+          <button class="store-button" type="button" disabled>
+            <i>●</i><span><small>TestFlight</small><b>iPhone 版准备中</b></span>
+          </button>
+        </div>
+        <small class="release-note">Android 当前为正式发布前候选版本，用于真机验收。</small>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-brand"><strong>灵感</strong><span>在平凡中发现特别。</span></div>
+    <div class="footer-links">
+      <a href="./privacy.html">隐私政策</a>
+      <a href="./terms.html">用户协议</a>
+      <a href="https://github.com/mg1998ex-crypto/linggan">GitHub</a>
+    </div>
+    <small>© 2026 灵感 · 版本 1.0.0</small>
+  </footer>
+
+  <a class="mobile-download" href="https://github.com/mg1998ex-crypto/linggan/releases/download/v1.0.0-rc.1/linggan-android-rc1.apk">下载 Android</a>
+  <script src="./script.js?v=3"></script>
+</body>
+</html>

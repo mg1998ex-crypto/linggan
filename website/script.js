@@ -1,48 +1,41 @@
-const revealObserver = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (entry.isIntersecting) {
+const revealItems = document.querySelectorAll(".reveal");
+
+if ("IntersectionObserver" in window) {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
       entry.target.classList.add("visible");
-      revealObserver.unobserve(entry.target);
-    }
-  });
-}, { threshold: 0.12 });
+      observer.unobserve(entry.target);
+    });
+  }, { threshold: 0.08, rootMargin: "0px 0px -30px" });
 
-document.querySelectorAll(".reveal").forEach((element) => revealObserver.observe(element));
-
-const dialog = document.querySelector("#notice-dialog");
-const dialogTitle = document.querySelector("#dialog-title");
-const dialogCopy = document.querySelector("#dialog-copy");
-
-function showNotice(title, copy) {
-  dialogTitle.textContent = title;
-  dialogCopy.textContent = copy;
-  dialog.showModal();
+  revealItems.forEach((item) => observer.observe(item));
+} else {
+  revealItems.forEach((item) => item.classList.add("visible"));
 }
 
-document.querySelectorAll("[data-open-login]").forEach((button) => {
-  button.addEventListener("click", () => showNotice("登录功能正在准备", "首发版先支持无需登录、直接使用。等云端同步与会员功能确定后，这里会接入正式账号系统。"));
+window.addEventListener("pageshow", () => {
+  document.querySelectorAll(".brand-intro .reveal, .hero .reveal").forEach((item) => item.classList.add("visible"));
 });
 
-document.querySelectorAll("[data-download]").forEach((button) => {
-  button.addEventListener("click", () => {
-    if (button.dataset.url) {
-      window.location.href = button.dataset.url;
-      return;
-    }
-    const platform = button.dataset.download === "ios" ? "iPhone TestFlight" : "Android";
-    showNotice(`${platform} 版本正在准备`, "安装包通过第一轮内部测试后，这个按钮会替换为真实下载链接。" );
-  });
-});
+const intro = document.querySelector(".brand-intro");
+const mobileDownload = document.querySelector(".mobile-download");
+const downloadSection = document.querySelector("#download");
 
-document.querySelectorAll("[data-placeholder]").forEach((link) => {
-  link.addEventListener("click", (event) => {
-    event.preventDefault();
-    showNotice(`${link.dataset.placeholder}正在整理`, "正式开放下载前会补全并公开这一页面。" );
-  });
-});
+if (intro && mobileDownload && "IntersectionObserver" in window) {
+  const downloadObserver = new IntersectionObserver(([entry]) => {
+    document.body.classList.toggle("past-intro", !entry.isIntersecting);
+  }, { threshold: 0.12 });
 
-document.querySelector(".dialog-close").addEventListener("click", () => dialog.close());
-document.querySelector(".dialog-confirm").addEventListener("click", () => dialog.close());
-dialog.addEventListener("click", (event) => {
-  if (event.target === dialog) dialog.close();
-});
+  downloadObserver.observe(intro);
+} else if (mobileDownload) {
+  document.body.classList.add("past-intro");
+}
+
+if (downloadSection && mobileDownload && "IntersectionObserver" in window) {
+  const downloadSectionObserver = new IntersectionObserver(([entry]) => {
+    document.body.classList.toggle("at-download", entry.isIntersecting);
+  }, { threshold: 0.12 });
+
+  downloadSectionObserver.observe(downloadSection);
+}
